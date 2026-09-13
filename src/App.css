@@ -1,0 +1,739 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #050807;
+  --panel: #0b100e;
+  --panel-2: #101713;
+  --border: #1c2921;
+  --green: #20e37a;
+  --green-dark: #0e8f4a;
+  --text: #f5f7f6;
+  --muted: #89958e;
+  --danger: #ff5d68;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Inter", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ================= LOGIN ================= */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 25px;
+  background:
+    radial-gradient(circle at 50% 0%, #123d27 0%, transparent 35%),
+    linear-gradient(145deg, #030504, #08100b 55%, #030504);
+}
+
+.login-card {
+  width: min(430px, 100%);
+  padding: 45px 38px;
+  background: rgba(10, 17, 13, .96);
+  border: 1px solid #20372a;
+  border-radius: 24px;
+  text-align: center;
+  box-shadow:
+    0 30px 100px rgba(0, 0, 0, .7),
+    inset 0 1px rgba(255,255,255,.03);
+}
+
+.logo-circle {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 22px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #28ed85, #0c9c50);
+  color: #031108;
+  font-weight: 900;
+  font-size: 20px;
+  box-shadow: 0 0 35px rgba(32, 227, 122, .25);
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: -.5px;
+}
+
+.login-subtitle {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 10px 0 30px;
+}
+
+.login-card input {
+  width: 100%;
+  height: 52px;
+  margin-bottom: 14px;
+  padding: 0 16px;
+  border: 1px solid #25352c;
+  border-radius: 11px;
+  background: #070c09;
+  color: white;
+  outline: none;
+  font-size: 14px;
+}
+
+.login-card input:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(32, 227, 122, .08);
+}
+
+.primary-btn {
+  border: 0;
+  background: linear-gradient(135deg, #27e982, #12b960);
+  color: #031108;
+  font-weight: 800;
+  padding: 14px 21px;
+  border-radius: 10px;
+  transition: .2s ease;
+}
+
+.primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(32, 227, 122, .18);
+}
+
+.login-card .primary-btn {
+  width: 100%;
+  height: 52px;
+}
+
+.login-note {
+  margin-top: 25px;
+  color: #718078;
+  font-size: 13px;
+}
+
+/* ================= APP ================= */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  background:
+    radial-gradient(circle at 75% -10%, rgba(23, 93, 55, .16), transparent 30%),
+    var(--bg);
+}
+
+/* ================= SIDEBAR ================= */
+
+.sidebar {
+  width: 260px;
+  min-height: 100vh;
+  position: sticky;
+  top: 0;
+  padding: 25px 16px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 13, 10, .96);
+  border-right: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 28px;
+  border-bottom: 1px solid #18231d;
+  margin-bottom: 24px;
+}
+
+.brand-logo {
+  width: 45px;
+  height: 45px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #27e982, #0d9950);
+  color: #031108;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 0 20px rgba(32, 227, 122, .16);
+}
+
+.brand h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.brand span {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sidebar nav button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #829088;
+  padding: 13px 15px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  transition: .2s;
+}
+
+.sidebar nav button:hover {
+  color: white;
+  background: #111a15;
+}
+
+.sidebar nav button.active {
+  color: var(--green);
+  background: linear-gradient(
+    90deg,
+    rgba(32, 227, 122, .13),
+    rgba(32, 227, 122, .03)
+  );
+  border-left: 3px solid var(--green);
+}
+
+.logout {
+  margin-top: auto;
+  border: 0;
+  background: transparent;
+  color: #b66c72;
+  padding: 14px 15px;
+  border-radius: 10px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.logout:hover {
+  background: rgba(255, 93, 104, .07);
+  color: var(--danger);
+}
+
+/* ================= MAIN ================= */
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 1500px;
+  padding: 28px 35px 50px;
+}
+
+.topbar {
+  min-height: 65px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.topbar h1 {
+  margin: 0 0 5px;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -.4px;
+}
+
+.topbar p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.top-balance {
+  padding: 12px 18px;
+  border: 1px solid #254333;
+  border-radius: 12px;
+  background: #0d1811;
+  color: var(--green);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+/* ================= HERO ================= */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 250px;
+  padding: 38px;
+  margin-bottom: 24px;
+  border: 1px solid #20382a;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(32, 227, 122, .16), transparent 25%),
+    linear-gradient(120deg, #0d1711, #09100c);
+}
+
+.hero::after {
+  content: "⚽";
+  position: absolute;
+  right: 55px;
+  bottom: -30px;
+  font-size: 150px;
+  opacity: .045;
+}
+
+.badge {
+  display: inline-block;
+  padding: 7px 10px;
+  border: 1px solid #235237;
+  border-radius: 20px;
+  color: var(--green);
+  background: rgba(32, 227, 122, .07);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.hero h2 {
+  max-width: 600px;
+  margin: 16px 0 10px;
+  font-size: 31px;
+  line-height: 1.15;
+}
+
+.hero p {
+  max-width: 600px;
+  color: #91a097;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+/* ================= STATS ================= */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  padding: 21px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: linear-gradient(145deg, #0d1410, #090e0b);
+}
+
+.stat-card span {
+  display: block;
+  color: #77847c;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.stat-card strong {
+  font-size: 22px;
+}
+
+/* ================= CARDS ================= */
+
+.content-card {
+  padding: 25px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  background: #0b110e;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+}
+
+.content-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.section-title span {
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: rgba(32, 227, 122, .08);
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* ================= MATCH / TIP ================= */
+
+.match,
+.tip-card,
+.bet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  margin-bottom: 12px;
+  border: 1px solid #1b2921;
+  border-radius: 12px;
+  background: #080e0b;
+}
+
+.match strong,
+.tip-card h3,
+.bet-row strong {
+  font-size: 14px;
+}
+
+.match p,
+.tip-card p,
+.bet-row p {
+  margin: 7px 0;
+  color: #7f8d84;
+  font-size: 12px;
+}
+
+.odds {
+  flex-shrink: 0;
+  padding: 9px 13px;
+  border: 1px solid #245538;
+  border-radius: 8px;
+  background: #102319;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.tip-card small {
+  color: var(--green);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+/* ================= WALLET ================= */
+
+.big-balance {
+  margin: 25px 0;
+  font-size: 42px;
+  font-weight: 900;
+  letter-spacing: -1px;
+}
+
+.wallet-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.wallet-actions button {
+  border: 1px solid #25372c;
+  background: #101913;
+  color: white;
+  padding: 13px 18px;
+  border-radius: 9px;
+  font-weight: 700;
+}
+
+.wallet-actions button:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* ================= FORMS ================= */
+
+.form,
+.stake-area {
+  max-width: 480px;
+  margin-top: 22px;
+}
+
+.form input,
+.stake-area input {
+  width: 100%;
+  height: 51px;
+  margin-bottom: 12px;
+  padding: 0 15px;
+  border: 1px solid #223129;
+  border-radius: 10px;
+  background: #070c09;
+  color: white;
+  outline: none;
+}
+
+.form input:focus,
+.stake-area input:focus {
+  border-color: var(--green);
+}
+
+.form .primary-btn,
+.stake-area .primary-btn {
+  width: 100%;
+}
+
+.payment-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 24px;
+}
+
+.payment-methods div {
+  padding: 11px 14px;
+  border: 1px solid #203027;
+  border-radius: 8px;
+  background: #0d1510;
+  color: #a7b1ab;
+  font-size: 12px;
+}
+
+.demo-note,
+.muted {
+  color: #6f7d74;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ================= BETS ================= */
+
+.bet-row {
+  margin-bottom: 9px;
+}
+
+.bet-row small {
+  color: #7e8a83;
+}
+
+.pending {
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: #332b0e;
+  color: #e9c94b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* ================= MESSAGES ================= */
+
+.message {
+  padding: 12px 15px;
+  border: 1px solid #24583a;
+  border-radius: 9px;
+  background: #0d2116;
+  color: #6ff0a9;
+  font-size: 13px;
+}
+
+.global-message {
+  margin-bottom: 20px;
+}
+
+/* ================= EMPTY ================= */
+
+.empty {
+  padding: 45px 20px;
+  text-align: center;
+  color: #657269;
+  font-size: 13px;
+}
+
+/* ================= MOBILE ================= */
+
+@media (max-width: 1000px) {
+  .sidebar {
+    width: 220px;
+  }
+
+  .main {
+    padding: 25px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .app {
+    display: block;
+  }
+
+  .sidebar {
+    position: relative;
+    width: 100%;
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand {
+    margin-bottom: 15px;
+  }
+
+  .sidebar nav {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .logout {
+    margin-top: 15px;
+  }
+
+  .main {
+    padding: 18px;
+  }
+
+  .topbar {
+    gap: 15px;
+  }
+
+  .topbar h1 {
+    font-size: 21px;
+  }
+
+  .top-balance {
+    font-size: 11px;
+    padding: 10px 12px;
+  }
+
+  .hero {
+    padding: 27px;
+  }
+
+  .hero h2 {
+    font-size: 25px;
+  }
+
+  .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 450px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .content-card {
+    padding: 19px;
+  }
+
+  .match,
+  .tip-card,
+  .bet-row {
+    padding: 14px;
+  }
+
+  .big-balance {
+    font-size: 34px;
+  }
+}/* ================= WHITE + BOLD TEXT ================= */
+
+body,
+.app,
+.main,
+.sidebar,
+.content-card,
+.hero,
+.stat-card,
+.match,
+.tip-card,
+.bet-row,
+.login-card {
+  color: #ffffff;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+strong,
+button,
+label,
+span,
+.brand h2,
+.topbar h1,
+.stat-card strong,
+.match strong,
+.tip-card h3,
+.bet-row strong {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+p,
+small,
+.muted,
+.demo-note,
+.login-subtitle,
+.login-note,
+.topbar p,
+.match p,
+.tip-card p,
+.bet-row p,
+.stat-card span {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+input {
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+input::placeholder {
+  color: #ffffff !important;
+  opacity: 0.75;
+  font-weight: 700;
+}
+
+.primary-btn,
+.wallet-actions button {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.pending {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.odds {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.badge {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.message {
+  color: #ffffff;
+  font-weight: 800;
+}
