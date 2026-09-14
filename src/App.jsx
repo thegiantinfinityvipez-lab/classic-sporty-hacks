@@ -110,10 +110,6 @@ function App() {
     if (session) loadAll();
   }, [session]);
 
-  useEffect(() => {
-    if (session) verifyReturnedPayment();
-  }, [session]);
-
   async function loadAll() {
     setLoading(true);
     setError("");
