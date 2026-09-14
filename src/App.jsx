@@ -1362,19 +1362,44 @@ function Stat({ label, value }) {
 }
 
 function VirtualGameCard({ icon, title, subtitle, description, badge }) {
+  const [opened, setOpened] = useState(false);
+
   return (
-    <article className="virtual-game-card">
+    <article className={`virtual-game-card ${opened ? "is-open" : ""}`}>
       <div className="virtual-card-top">
         <div className="virtual-game-icon">{icon}</div>
         <span className="virtual-badge">{badge}</span>
       </div>
+
       <div className="virtual-game-body">
         <span className="eyebrow">{subtitle}</span>
         <h3>{title}</h3>
         <p>{description}</p>
-        <button className="btn btn-primary" disabled>
-          Open Game
+
+        <button
+          className="btn btn-primary"
+          type="button"
+          onClick={() => setOpened((current) => !current)}
+        >
+          {opened ? "Close Game" : "Open Game"}
         </button>
+
+        {opened && (
+          <div className="virtual-game-open-panel">
+            <strong>{title} selected</strong>
+            <span>
+              The game screen is responding. Real-money gameplay will only be
+              enabled after a legitimate virtual-games provider is connected.
+            </span>
+            <button
+              className="virtual-panel-close"
+              type="button"
+              onClick={() => setOpened(false)}
+            >
+              Back to Virtual Games
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );

@@ -2093,3 +2093,233 @@ button:disabled {
     font-size: 28px;
   }
 }
+
+/* =========================================================
+   VIRTUAL GAMES
+   ========================================================= */
+.virtual-page {
+  animation: pageIn .25s ease;
+}
+
+.virtual-notice {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 20px;
+  margin-bottom: 22px;
+  border: 1px solid #dfe8ff;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f7faff, #ffffff);
+  box-shadow: 0 8px 24px rgba(31, 56, 120, .06);
+}
+
+.virtual-notice-icon {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #eaf1ff;
+  font-size: 24px;
+}
+
+.virtual-notice strong {
+  display: block;
+  color: #172033;
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.virtual-notice p {
+  margin: 0;
+  color: #68748a;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.virtual-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.virtual-game-card {
+  overflow: hidden;
+  border: 1px solid #e4eaf5;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(31, 56, 120, .07);
+}
+
+.virtual-card-top {
+  min-height: 145px;
+  padding: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #edf4ff, #f8fbff);
+}
+
+.virtual-game-icon {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 25px rgba(31, 56, 120, .10);
+  font-size: 36px;
+}
+
+.virtual-badge {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #fff;
+  color: #2859d9;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.virtual-game-body {
+  padding: 18px;
+}
+
+.virtual-game-body h3 {
+  margin: 5px 0 7px;
+  color: #172033;
+  font-size: 18px;
+}
+
+.virtual-game-body p {
+  min-height: 42px;
+  margin: 0 0 16px;
+  color: #718097;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.virtual-game-body .btn {
+  width: 100%;
+}
+
+.virtual-round-card {
+  margin-top: 20px;
+  padding: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  border: 1px solid #e4eaf5;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(31, 56, 120, .06);
+}
+
+.virtual-round-card h3 {
+  margin: 6px 0;
+  color: #172033;
+}
+
+.virtual-round-card p {
+  margin: 0;
+  color: #718097;
+  font-size: 13px;
+}
+
+.virtual-coming {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: #fff3e7;
+  color: #d86d16;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+
+@media (max-width: 1100px) {
+  .virtual-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .virtual-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .virtual-round-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+
+/* 10-game Virtual Sports layout */
+.virtual-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.virtual-count {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  background: #e9f7ef;
+  color: #138a4b;
+  vertical-align: middle;
+}
+
+@media (max-width: 620px) {
+  .virtual-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .virtual-count {
+    display: block;
+    width: fit-content;
+    margin: 7px 0 0;
+  }
+}
+
+
+/* Virtual game cards are interactive */
+.virtual-game-card.is-open {
+  transform: translateY(-2px);
+}
+
+.virtual-game-open-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f5f9ff;
+  border: 1px solid #dbe7f5;
+}
+
+.virtual-game-open-panel strong {
+  font-size: 14px;
+}
+
+.virtual-game-open-panel span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.virtual-panel-close {
+  width: fit-content;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #1769e0;
+  font-weight: 800;
+  cursor: pointer;
+}
