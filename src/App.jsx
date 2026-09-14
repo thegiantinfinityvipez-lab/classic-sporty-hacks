@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import "./App.css";
-import "./App.css";
 
 const money = (n) =>
   `GHS ${Number(n || 0).toLocaleString("en-GH", {
