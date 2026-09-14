@@ -1361,159 +1361,44 @@ function Stat({ label, value }) {
   );
 }
 
-function VirtualGameWorkspace({ game, onClose }) {
-  const [mode, setMode] = useState("play");
-  const [stake, setStake] = useState("");
-  const [selectedMarket, setSelectedMarket] = useState("");
-  const [message, setMessage] = useState("");
-  const [timer, setTimer] = useState(18);
-
-  const marketMap = {
-    "Virtual Football": ["Home Win", "Draw", "Away Win", "Over 2.5"],
-    "Virtual Horse Racing": ["Winner", "Top 3", "Forecast"],
-    "Virtual Basketball": ["Home Win", "Away Win", "Total Points"],
-    "Virtual Tennis": ["Player 1", "Player 2", "Total Games"],
-    "Virtual Greyhound Racing": ["Winner", "Top 3", "Forecast"],
-    "Virtual Formula Racing": ["Winner", "Podium", "Fastest Lap"],
-    "Virtual Volleyball": ["Home Win", "Away Win", "Total Sets"],
-    "Virtual Baseball": ["Home Win", "Away Win", "Total Runs"],
-    "Virtual Ice Hockey": ["Home Win", "Draw", "Away Win", "Over 5.5"],
-    "Virtual Handball": ["Home Win", "Draw", "Away Win", "Over 55.5"],
-    Spin: ["Red", "Black", "Even", "Odd"],
-    Dice: ["Over 3.5", "Under 3.5", "Even", "Odd"],
-    Cards: ["Red", "Black", "Higher", "Lower"],
-  };
-
-  const markets = marketMap[game.title] || ["Main"];
-  const currentMarket = selectedMarket || markets[0];
-  const marketIndex = Math.max(0, markets.indexOf(currentMarket));
-  const odds = 1.35 + marketIndex * 0.27;
-
-  useEffect(() => {
-    const id = setInterval(() => setTimer(v => (v <= 1 ? 18 : v - 1)), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const addSelection = () => {
-    const amount = Number(stake);
-    if (!amount || amount <= 0) {
-      setMessage("Enter a valid stake amount first.");
-      return;
-    }
-    setMessage("Selection saved for preview. Real-money settlement requires a legitimate provider connection.");
-  };
-
-  return (
-    <section className="virtual-workspace">
-      <div className="virtual-workspace-head">
-        <button className="ghost-btn" type="button" onClick={onClose}>← Back to Virtual Games</button>
-        <div className="virtual-workspace-title">
-          <span className="virtual-workspace-icon">{game.icon}</span>
-          <div>
-            <span className="eyebrow">VIRTUAL GAMES</span>
-            <h2>{game.title}</h2>
-            <p>{game.subtitle}</p>
-          </div>
-        </div>
-        <span className="virtual-status-pill">PREVIEW MODE</span>
-      </div>
-
-      <div className="virtual-tabs">
-        {[
-          ["play", "🎮 Play"],
-          ["markets", "📊 Markets"],
-          ["history", "🧾 History"],
-        ].map(([value, label]) => (
-          <button key={value} type="button" className={mode === value ? "active" : ""} onClick={() => setMode(value)}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {mode === "play" && (
-        <div className="virtual-game-layout">
-          <div className="virtual-game-stage">
-            <div className="round-bar">
-              <span>ROUND #CSH-{String(timer).padStart(2, "0")}</span>
-              <strong>Next round in {timer}s</strong>
-            </div>
-            <div className="virtual-scene">
-              <div className="scene-glow" />
-              <div className="scene-icon">{game.icon}</div>
-              <h3>{game.title}</h3>
-              <p>{game.description}</p>
-              <div className="scene-placeholder">
-                <span>GAME ENGINE READY</span>
-                <small>Verified live outcomes will appear after provider integration.</small>
-              </div>
-            </div>
-            <div className="market-strip">
-              {markets.map((market, index) => (
-                <button key={market} type="button" className={currentMarket === market ? "market-choice selected" : "market-choice"} onClick={() => setSelectedMarket(market)}>
-                  <span>{market}</span><strong>{(1.35 + index * 0.27).toFixed(2)}</strong>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <aside className="virtual-bet-panel">
-            <div className="panel-heading">
-              <div><span className="eyebrow">BET BUILDER</span><h3>{currentMarket}</h3></div>
-              <span className="odds-chip">{odds.toFixed(2)}</span>
-            </div>
-            <label>
-              Stake amount
-              <div className="stake-input">
-                <span>GHS</span>
-                <input type="number" min="1" step="1" placeholder="0.00" value={stake} onChange={(e) => { setStake(e.target.value); setMessage(""); }} />
-              </div>
-            </label>
-            <div className="potential-card">
-              <span>Potential return</span>
-              <strong>GHS {(Number(stake || 0) * odds).toFixed(2)}</strong>
-            </div>
-            <button className="primary-btn virtual-bet-btn" type="button" onClick={addSelection}>Add Selection</button>
-            {message && <div className="virtual-message">{message}</div>}
-            <div className="responsible-note"><strong>Preview only</strong><span>No real-money wager is submitted from this screen.</span></div>
-          </aside>
-        </div>
-      )}
-
-      {mode === "markets" && (
-        <div className="virtual-markets-page">
-          <div className="section-heading"><div><span className="eyebrow">AVAILABLE MARKETS</span><h3>{game.title} markets</h3></div><span>{markets.length} markets</span></div>
-          <div className="virtual-market-list">
-            {markets.map((market, index) => (
-              <div className="virtual-market-row" key={market}>
-                <div><strong>{market}</strong><span>Round #{100 + index + 1}</span></div>
-                <b>{(1.35 + index * 0.27).toFixed(2)}</b>
-                <button type="button" onClick={() => { setSelectedMarket(market); setMode("play"); }}>Select</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {mode === "history" && (
-        <div className="virtual-history-page">
-          <div className="section-heading"><div><span className="eyebrow">GAME HISTORY</span><h3>Recent virtual rounds</h3></div></div>
-          <div className="history-grid">
-            {[1,2,3,4,5,6].map((round) => (
-              <div className="history-card" key={round}>
-                <span>ROUND #{2400 + round}</span>
-                <strong>{game.icon} {game.title}</strong>
-                <small>Awaiting verified provider results</small>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
 function VirtualGameCard({ icon, title, subtitle, description, badge }) {
   const [opened, setOpened] = useState(false);
+  const [result, setResult] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const runDemo = (type) => {
+    if (busy) return;
+    setBusy(true);
+    setResult("");
+
+    window.setTimeout(() => {
+      if (type === "dice") {
+        const a = Math.floor(Math.random() * 6) + 1;
+        const b = Math.floor(Math.random() * 6) + 1;
+        setResult(`🎲 Dice result: ${a} + ${b} = ${a + b}`);
+      } else if (type === "spin") {
+        const options = ["1.20x", "2.00x", "3.00x", "5.00x", "10.00x", "BONUS"];
+        setResult(`🎡 Spin landed on ${options[Math.floor(Math.random() * options.length)]}`);
+      } else if (type === "cards") {
+        const suits = ["♠", "♥", "♦", "♣"];
+        const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+        const card = `${ranks[Math.floor(Math.random() * ranks.length)]}${suits[Math.floor(Math.random() * suits.length)]}`;
+        setResult(`🃏 Your demo card: ${card}`);
+      } else {
+        const outcomes = ["HOME WIN", "DRAW", "AWAY WIN"];
+        setResult(`🏆 Demo result: ${outcomes[Math.floor(Math.random() * outcomes.length)]}`);
+      }
+      setBusy(false);
+    }, 650);
+  };
+
+  const gameType = title.toLowerCase().includes("dice")
+    ? "dice"
+    : title.toLowerCase().includes("spin")
+      ? "spin"
+      : title.toLowerCase().includes("card")
+        ? "cards"
+        : "sport";
 
   return (
     <article className={`virtual-game-card ${opened ? "is-open" : ""}`}>
@@ -1530,25 +1415,73 @@ function VirtualGameCard({ icon, title, subtitle, description, badge }) {
         <button
           className="btn btn-primary"
           type="button"
-          onClick={() => setOpened((current) => !current)}
+          onClick={() => {
+            setOpened((current) => !current);
+            setResult("");
+          }}
         >
           {opened ? "Close Game" : "Open Game"}
         </button>
 
         {opened && (
-          <div className="virtual-game-open-panel">
-            <strong>{title} selected</strong>
-            <span>
-              The game screen is responding. Real-money gameplay will only be
-              enabled after a legitimate virtual-games provider is connected.
-            </span>
-            <button
-              className="virtual-panel-close"
-              type="button"
-              onClick={() => setOpened(false)}
-            >
-              Back to Virtual Games
-            </button>
+          <div className={`virtual-play-panel virtual-${gameType}`}>
+            <div className="virtual-play-head">
+              <div>
+                <span className="eyebrow">DEMO GAME SCREEN</span>
+                <strong>{icon} {title}</strong>
+              </div>
+              <span className="virtual-demo-pill">DEMO</span>
+            </div>
+
+            {gameType === "dice" && (
+              <>
+                <div className="dice-table">
+                  <div className="die">?</div>
+                  <div className="dice-plus">+</div>
+                  <div className="die">?</div>
+                </div>
+                <button className="virtual-action-btn" type="button" disabled={busy} onClick={() => runDemo("dice")}>
+                  {busy ? "Rolling…" : "Roll Dice"}
+                </button>
+              </>
+            )}
+
+            {gameType === "spin" && (
+              <>
+                <div className="spin-wheel">🎡</div>
+                <button className="virtual-action-btn" type="button" disabled={busy} onClick={() => runDemo("spin")}>
+                  {busy ? "Spinning…" : "Spin Now"}
+                </button>
+              </>
+            )}
+
+            {gameType === "cards" && (
+              <>
+                <div className="demo-card-deck">
+                  <div className="playing-card back">★</div>
+                  <div className="playing-card back offset">★</div>
+                </div>
+                <button className="virtual-action-btn" type="button" disabled={busy} onClick={() => runDemo("cards")}>
+                  {busy ? "Dealing…" : "Deal Card"}
+                </button>
+              </>
+            )}
+
+            {gameType === "sport" && (
+              <>
+                <div className="virtual-match-preview">
+                  <div><span>HOME</span><strong>{title.includes("Horse") ? "🏇 Red Star" : title.includes("Formula") ? "🏎️ Team A" : "🏠 Team A"}</strong></div>
+                  <span className="virtual-vs">VS</span>
+                  <div><span>AWAY</span><strong>{title.includes("Horse") ? "🏇 Blue Moon" : title.includes("Formula") ? "🏎️ Team B" : "✈️ Team B"}</strong></div>
+                </div>
+                <button className="virtual-action-btn" type="button" disabled={busy} onClick={() => runDemo("sport")}>
+                  {busy ? "Running…" : "Run Demo Round"}
+                </button>
+              </>
+            )}
+
+            {result && <div className="virtual-result">{result}</div>}
+            <small className="virtual-demo-note">Demo interface only — no real-money wager is placed.</small>
           </div>
         )}
       </div>
