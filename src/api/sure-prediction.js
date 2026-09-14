@@ -6,26 +6,6 @@ function cleanText(value) {
     .trim();
 }
 
-function extractOdds(text) {
-  const matches = [];
-  const re = /\b(?:[1I]\s*[:.)-]?\s*)?([0-9]{1,3}(?:[.,][0-9]{1,2}))\b/g;
-
-  let m;
-
-  while ((m = re.exec(String(text || "")))) {
-    const value = Number(String(m[1]).replace(",", "."));
-
-    if (value >= 1.01 && value <= 100) {
-      matches.push({
-        value,
-        index: m.index,
-      });
-    }
-  }
-
-  return matches;
-}
-
 function unique(items) {
   return [...new Set(items.filter(Boolean))];
 }
@@ -35,6 +15,177 @@ function titleCase(value) {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b([a-z])/g, (m) => m.toUpperCase());
+}
+
+/*
+  OCR sometimes changes decimal odds.
+
+  Examples:
+  11.89  -> 11.89
+  1.24   -> 1.24
+  7.75   -> 7.75
+  7758   -> 7.75
+  775    -> 7.75
+*/
+function normalizeOdd(raw) {
+  if (raw === null || raw === undefined) return null;
+
+  let value = String(raw)
+    .trim()
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "");
+
+  if (!value) return null;
+
+  // Normal decimal number
+  if (value.includes(".")) {
+    const number = Number(value);
+
+    if (
+      Number.isFinite(number) &&
+      number >= 1.01 &&
+      number <= 100
+    ) {
+      return Number(number.toFixed(2));
+    }
+  }
+
+  // OCR may remove the decimal point.
+  // 7758 -> 7.75
+  // 775  -> 7.75
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.length === 4) {
+    const possible = Number(
+      `${digits.slice(0, -2)}.${digits.slice(-2)}`
+    );
+
+    if (
+      Number.isFinite(possible) &&
+      possible >= 1.01 &&
+      possible <= 100
+    ) {
+      return Number(possible.toFixed(2));
+    }
+  }
+
+  if (digits.length === 3) {
+    const possible = Number(
+      `${digits.slice(0, 1)}.${digits.slice(1)}`
+    );
+
+    if (
+      Number.isFinite(possible) &&
+      possible >= 1.01 &&
+      possible <= 100
+    ) {
+      return Number(possible.toFixed(2));
+    }
+  }
+
+  const number = Number(digits);
+
+  if (
+    Number.isFinite(number) &&
+    number >= 1.01 &&
+    number <= 100
+  ) {
+    return Number(number.toFixed(2));
+  }
+
+  return null;
+}
+
+/*
+  Extract decimal odds and common OCR versions.
+*/
+function extractOdds(text) {
+  const source = String(text || "");
+  const results = [];
+
+  // Normal decimal odds.
+  const decimalRegex = /\b\d{1,3}[.,]\d{1,2}\b/g;
+
+  let match;
+
+  while ((match = decimalRegex.exec(source))) {
+    const value = normalizeOdd(match[0]);
+
+    if (value !== null) {
+      results.push({
+        value,
+        index: match.index,
+      });
+    }
+  }
+
+  /*
+    OCR version such as:
+
+    1 11.89 X 7758 2 1.24
+
+    We specifically look around X / 2 so that
+    ordinary four-digit numbers are not treated as odds.
+  */
+  const xPattern =
+    /\bX\b\s*[:.)-]?\s*(\d{3,4})\b/i;
+
+  const xMatch = source.match(xPattern);
+
+  if (xMatch) {
+    const value = normalizeOdd(xMatch[1]);
+
+    if (value !== null) {
+      results.push({
+        value,
+        index: xMatch.index,
+        isDraw: true,
+      });
+    }
+  }
+
+  /*
+    Also recognize an OCR sequence after the 1/X/2 labels.
+  */
+  const labelledPattern =
+    /\b1\b\s*[:.)-]?\s*([0-9]{1,4}(?:[.,][0-9]{1,2})?)\s*(?:X|x)\s*[:.)-]?\s*([0-9]{1,4}(?:[.,][0-9]{1,2})?)\s*(?:2)\s*[:.)-]?\s*([0-9]{1,4}(?:[.,][0-9]{1,2})?)/;
+
+  const labelled = source.match(labelledPattern);
+
+  if (labelled) {
+    const home = normalizeOdd(labelled[1]);
+    const draw = normalizeOdd(labelled[2]);
+    const away = normalizeOdd(labelled[3]);
+
+    if (home !== null) {
+      results.push({ value: home, label: "home" });
+    }
+
+    if (draw !== null) {
+      results.push({ value: draw, label: "draw" });
+    }
+
+    if (away !== null) {
+      results.push({ value: away, label: "away" });
+    }
+  }
+
+  /*
+    Remove duplicates while preserving useful order.
+  */
+  const final = [];
+  const seen = new Set();
+
+  for (const item of results) {
+    const key = `${item.value}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      final.push(item);
+    }
+  }
+
+  return final;
 }
 
 function extractTeams(text) {
@@ -48,25 +199,19 @@ function extractTeams(text) {
     )
     .filter(Boolean);
 
-  const bad =
-    /^(home|away|draw|market|odds|1|x|2|over|under|yes|no|btts|football|soccer|prediction|today|live|premier|league|vs|v)$/i;
+  const bad = /^(home|away|draw|market|odds|1|x|2|over|under|yes|no|btts|football|soccer|prediction|today|live|premier|league|vs|v)$/i;
 
   const candidates = [];
 
   for (const line of rawLines) {
     const cleaned = line
-      .replace(/\b\d{1,3}(?:[.,]\d{1,2})\b/g, " ")
+      .replace(/\b\d{1,4}(?:[.,]\d{1,2})?\b/g, " ")
       .replace(/\s+/g, " ")
       .trim();
 
-    if (
-      !cleaned ||
-      bad.test(cleaned) ||
-      cleaned.length < 3 ||
-      cleaned.length > 45
-    ) {
-      continue;
-    }
+    if (!cleaned) continue;
+    if (bad.test(cleaned)) continue;
+    if (cleaned.length < 3 || cleaned.length > 50) continue;
 
     const parts = cleaned.split(/\s+(?:vs?|versus)\s+/i);
 
@@ -87,30 +232,58 @@ function extractTeams(text) {
   const compact = cleanText(text);
 
   const vs = compact.match(
-    /(.{2,35})\s+(?:vs?|versus)\s+(.{2,35})/i
+    /(.{2,40})\s+(?:vs?|versus)\s+(.{2,40})/i
   );
 
   if (vs) {
-    return [titleCase(vs[1]), titleCase(vs[2])];
+    return [
+      titleCase(vs[1]),
+      titleCase(vs[2]),
+    ];
+  }
+
+  /*
+    Specific fallback for common betting screenshot format:
+
+    Elche CF 1X2 Real Madrid
+  */
+  const marketMatch = compact.match(
+    /^(.{2,35}?)\s+1X2\s+(.{2,35}?)(?:\s+1\s|$)/i
+  );
+
+  if (marketMatch) {
+    return [
+      titleCase(marketMatch[1]),
+      titleCase(marketMatch[2]),
+    ];
   }
 
   const usable = unique(candidates).filter(
-    (x) => x.split(" ").length <= 7
+    (team) => team.split(" ").length <= 8
   );
 
-  return usable.length >= 2
-    ? [usable[0], usable[1]]
-    : ["Unable to read home team", "Unable to read away team"];
+  if (usable.length >= 2) {
+    return [usable[0], usable[1]];
+  }
+
+  return [
+    "Unable to read home team",
+    "Unable to read away team",
+  ];
 }
 
 function extractGoalMarket(text) {
   for (const line of String(text || "").split("\n")) {
-    const m = line.match(/(?:over|under)\s*(\d+(?:[.,]\d+)?)/i);
+    const match = line.match(
+      /(?:over|under)\s*(\d+(?:[.,]\d+)?)/i
+    );
 
-    if (m) {
+    if (match) {
       return {
-        line: Number(m[1].replace(",", ".")),
-        side: /over/i.test(line) ? "Over" : "Under",
+        line: Number(match[1].replace(",", ".")),
+        side: /over/i.test(line)
+          ? "Over"
+          : "Under",
       };
     }
   }
@@ -123,8 +296,12 @@ function buildPrediction(text) {
 
   const odds = extractOdds(source);
 
-  const [homeTeam, awayTeam] = extractTeams(source);
+  const [homeTeam, awayTeam] =
+    extractTeams(source);
 
+  /*
+    We need at least two usable odds.
+  */
   if (odds.length < 2) {
     return {
       home_team: homeTeam,
@@ -138,21 +315,93 @@ function buildPrediction(text) {
       btts: "Unavailable",
       possible_score: "Unavailable",
       reason:
-        "The screenshot did not contain enough readable decimal odds. Please upload a clearer betting screenshot showing the teams and odds.",
+        "The screenshot did not contain enough readable betting odds. Please upload a clearer screenshot showing the teams and 1X2 odds.",
     };
   }
 
-  const first = odds.slice(0, 3).map((x) => x.value);
+  /*
+    First try to identify the standard 1X2 order.
 
-  const homeOdds = first[0];
+    Home = 1
+    Draw = X
+    Away = 2
+  */
+  const labelledHome = odds.find(
+    (item) => item.label === "home"
+  );
 
-  const drawOdds = first.length >= 3 ? first[1] : null;
+  const labelledDraw = odds.find(
+    (item) => item.label === "draw"
+  );
 
-  const awayOdds = first.length >= 3 ? first[2] : first[1];
+  const labelledAway = odds.find(
+    (item) => item.label === "away"
+  );
+
+  let homeOdds;
+  let drawOdds;
+  let awayOdds;
+
+  if (
+    labelledHome &&
+    labelledDraw &&
+    labelledAway
+  ) {
+    homeOdds = labelledHome.value;
+    drawOdds = labelledDraw.value;
+    awayOdds = labelledAway.value;
+  } else {
+    /*
+      Normal screenshot sequence:
+
+      11.89
+      7.75
+      1.24
+    */
+
+    const values = [];
+
+    for (const item of odds) {
+      if (!values.includes(item.value)) {
+        values.push(item.value);
+      }
+    }
+
+    homeOdds = values[0];
+    drawOdds =
+      values.length >= 3 ? values[1] : null;
+    awayOdds =
+      values.length >= 3 ? values[2] : values[1];
+  }
+
+  /*
+    Safety check.
+  */
+  if (
+    !Number.isFinite(homeOdds) ||
+    !Number.isFinite(awayOdds)
+  ) {
+    return {
+      home_team: homeTeam,
+      away_team: awayTeam,
+      predicted_winner: "Unable to determine",
+      market: "1X2",
+      confidence: "Low",
+      odds: "",
+      goal_prediction: "Unavailable",
+      over_under: "Unavailable",
+      btts: "Unavailable",
+      possible_score: "Unavailable",
+      reason:
+        "The betting odds could not be read reliably from the screenshot.",
+    };
+  }
 
   let winner = "Draw";
-
-  let selectedOdds = drawOdds ?? homeOdds;
+  let selectedOdds =
+    drawOdds !== null
+      ? drawOdds
+      : homeOdds;
 
   let winnerSide = "draw";
 
@@ -172,32 +421,47 @@ function buildPrediction(text) {
     winnerSide = "away";
   }
 
-  const outcomes = drawOdds
-    ? [homeOdds, drawOdds, awayOdds]
-    : [homeOdds, awayOdds];
+  const outcomes =
+    drawOdds !== null
+      ? [homeOdds, drawOdds, awayOdds]
+      : [homeOdds, awayOdds];
 
-  const sorted = [...outcomes].sort((a, b) => a - b);
+  const sorted = [...outcomes].sort(
+    (a, b) => a - b
+  );
 
-  const gap = sorted[1] ? sorted[0] / sorted[1] : 1;
+  const gap =
+    sorted[1] && sorted[1] > 0
+      ? sorted[0] / sorted[1]
+      : 1;
 
-  const confidence =
-    gap < 0.62
-      ? "High"
-      : gap < 0.8
-      ? "Medium"
-      : "Low";
+  let confidence = "Low";
 
-  const goalMarket = extractGoalMarket(source);
+  if (gap < 0.62) {
+    confidence = "High";
+  } else if (gap < 0.8) {
+    confidence = "Medium";
+  }
 
-  let goalPrediction = goalMarket
-    ? `${goalMarket.line} Goals`
-    : "2–3 Goals";
+  /*
+    Goal prediction.
+    If an actual goal market is visible,
+    use it. Otherwise provide a clearly
+    labelled heuristic estimate.
+  */
+  const goalMarket =
+    extractGoalMarket(source);
 
-  let overUnder = goalMarket
-    ? `${goalMarket.side} ${goalMarket.line}`
-    : "Over 2.5";
+  let goalPrediction;
+  let overUnder;
 
-  if (!goalMarket) {
+  if (goalMarket) {
+    goalPrediction =
+      `${goalMarket.line} Goals`;
+
+    overUnder =
+      `${goalMarket.side} ${goalMarket.line}`;
+  } else {
     if (selectedOdds <= 1.3) {
       goalPrediction = "2–4 Goals";
       overUnder = "Over 2.5";
@@ -210,22 +474,47 @@ function buildPrediction(text) {
     }
   }
 
-  const btts =
-    selectedOdds <= 1.3 &&
-    ((winnerSide === "away" && homeOdds >= 7) ||
-      (winnerSide === "home" && awayOdds >= 7))
-      ? "No"
-      : "Yes";
+  /*
+    BTTS is only a heuristic when the market
+    isn't visible.
+  */
+  let btts = "Yes";
 
+  if (
+    selectedOdds <= 1.3 &&
+    (
+      (winnerSide === "away" &&
+        homeOdds >= 7) ||
+      (winnerSide === "home" &&
+        awayOdds >= 7)
+    )
+  ) {
+    btts = "No";
+  }
+
+  /*
+    Possible score.
+  */
   let possibleScore = "1–1";
 
   if (winnerSide === "away") {
-    possibleScore = selectedOdds <= 1.3 ? "0–2" : "1–2";
+    possibleScore =
+      selectedOdds <= 1.3
+        ? "0–2"
+        : "1–2";
   }
 
   if (winnerSide === "home") {
-    possibleScore = selectedOdds <= 1.3 ? "2–0" : "2–1";
+    possibleScore =
+      selectedOdds <= 1.3
+        ? "2–0"
+        : "2–1";
   }
+
+  const formattedOdds =
+    drawOdds !== null
+      ? `1: ${homeOdds.toFixed(2)} | X: ${drawOdds.toFixed(2)} | 2: ${awayOdds.toFixed(2)}`
+      : `1: ${homeOdds.toFixed(2)} | 2: ${awayOdds.toFixed(2)}`;
 
   return {
     home_team: homeTeam,
@@ -233,20 +522,11 @@ function buildPrediction(text) {
     predicted_winner: winner,
     market: "1X2",
     confidence,
-
-    odds:
-      drawOdds !== null
-        ? `1: ${homeOdds} | X: ${drawOdds} | 2: ${awayOdds}`
-        : `1: ${homeOdds} | 2: ${awayOdds}`,
-
+    odds: formattedOdds,
     goal_prediction: goalPrediction,
-
     over_under: overUnder,
-
     btts,
-
     possible_score: possibleScore,
-
     reason: goalMarket
       ? `${winner} has the strongest 1X2 market signal, and the visible goal market was also considered.`
       : `${winner} has the strongest 1X2 market signal. Goal, Over/Under and BTTS are heuristic estimates because those markets were not clearly visible in the screenshot.`,
@@ -263,20 +543,30 @@ export default function handler(req, res) {
   try {
     const { text } = req.body || {};
 
-    if (!text || typeof text !== "string") {
+    if (
+      !text ||
+      typeof text !== "string"
+    ) {
       return res.status(400).json({
         error: "No OCR text was provided.",
       });
     }
 
+    const prediction =
+      buildPrediction(text);
+
     return res.status(200).json({
-      prediction: buildPrediction(text),
+      prediction,
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "Sure Prediction error:",
+      error
+    );
 
     return res.status(500).json({
-      error: "Unable to process the prediction.",
+      error:
+        "Unable to process the prediction.",
     });
   }
 }
