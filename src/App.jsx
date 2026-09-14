@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createWorker } from "tesseract.js";
 import { supabase } from "./supabase";
 import "./App.css";
 
@@ -66,6 +65,7 @@ function App() {
   const [selectedGame, setSelectedGame] = useState(null);
   const [predictionGame, setPredictionGame] = useState(null);
   const [selectedPackage, setSelectedPackage] = useState(null);
+  const [predictionActivity, setPredictionActivity] = useState([]);
 
   const [authMode, setAuthMode] = useState("login");
   const [name, setName] = useState("");
@@ -80,7 +80,6 @@ function App() {
   const [withdrawName, setWithdrawName] = useState("");
   const [withdrawDestination, setWithdrawDestination] = useState("");
   const [manualWithdrawals, setManualWithdrawals] = useState([]);
-
   const isAdmin = profile?.role === "admin" && profile?.is_active !== false;
 
   const combinedOdds = useMemo(
@@ -337,11 +336,32 @@ function App() {
     setPage("game");
   }
 
+  async function logPredictionActivity(activityType, game = null, pkg = null) {
+    if (!session?.user?.id) return;
+
+    try {
+      const { error: activityError } = await supabase
+        .from("prediction_activity")
+        .insert({
+          user_id: session.user.id,
+          activity_type: activityType,
+          game: game?.title || game?.key || null,
+          package_price: pkg?.price ? Number(pkg.price) : null,
+          prediction_count: pkg?.predictions ? Number(pkg.predictions) : null,
+        });
+
+      if (activityError) console.error("Prediction activity log error:", activityError);
+    } catch (activityError) {
+      console.error("Prediction activity log error:", activityError);
+    }
+  }
+
   function choosePackage(price) {
     const pkg = PACKAGES.find((item) => item.price === price);
     setSelectedPackage(pkg || null);
     setDepositAmount(String(price));
     setPage("wallet");
+    if (pkg) logPredictionActivity("package_selected", selectedGame, pkg);
     flash(`GHS ${price} package selected. The amount has been added to Deposit.`);
   }
 
@@ -358,9 +378,11 @@ function App() {
       return;
     }
     setPredictionGame(game);
+    logPredictionActivity("prediction_viewed", game, selectedPackage);
   }
 
   function confirmSurePrediction() {
+    logPredictionActivity("prediction_submitted", predictionGame, selectedPackage);
     setPredictionGame(null);
     flash("Sure Prediction request submitted for manual processing.");
   }
@@ -1277,10 +1299,6 @@ function PredictionModal({ game, pkg, wallet, onClose, onSubmit }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [prediction, setPrediction] = useState(null);
-  const [analysisError, setAnalysisError] = useState("");
-  const [ocrText, setOcrText] = useState("");
   const balance = Number(wallet?.balance || 0);
   const price = Number(pkg?.price || 0);
 
@@ -1290,166 +1308,26 @@ function PredictionModal({ game, pkg, wallet, onClose, onSubmit }) {
     setFile(next);
     setPreview(URL.createObjectURL(next));
     setSubmitted(false);
-    setPrediction(null);
-    setAnalysisError("");
-    setOcrText("");
-  }
-
-  async function analyzeScreenshot() {
-    if (!file || balance < price) return;
-
-    setAnalyzing(true);
-    setAnalysisError("");
-    setPrediction(null);
-    setOcrText("");
-
-    let worker;
-    try {
-      // OCR runs in the browser, so no OpenAI API key or paid AI credits are used.
-      worker = await createWorker("eng");
-      const result = await worker.recognize(file);
-      const text = result?.data?.text || "";
-
-      if (!text.trim()) {
-        throw new Error("No readable text was found. Please upload a clearer betting screenshot.");
-      }
-
-      setOcrText(text);
-
-      const response = await fetch("/api/sure-prediction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || "Prediction service is unavailable.");
-      setPrediction(data.prediction);
-    } catch (err) {
-      setAnalysisError(err.message || "Could not analyze this screenshot.");
-    } finally {
-      if (worker) await worker.terminate();
-      setAnalyzing(false);
-    }
   }
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="prediction-modal">
         <button className="modal-close" type="button" onClick={onClose}>×</button>
-        <div className="ai-icon large">🎯</div>
+        <div className="ai-icon large">🤖</div>
         <span className="eyebrow">{game.title} · SURE PREDICTION</span>
         <h2>Submit your match screenshot</h2>
         <p>Package: <strong>GHS {price}</strong> · <strong>{pkg?.predictions} prediction{pkg?.predictions > 1 ? "s" : ""}</strong></p>
-
-        <div className="prediction-wallet-check">
-          <div><span>WALLET</span><strong>{money(balance)}</strong></div>
-          <div><span>PACKAGE</span><strong>GHS {price}</strong></div>
-          <div><span>PREDICTIONS</span><strong>{pkg?.predictions}</strong></div>
-        </div>
-
-        {balance < price && (
-          <div className="alert error">
-            Insufficient wallet balance. You need GHS {price} before you can submit.
-          </div>
-        )}
-
+        <div className="prediction-wallet-check"><div><span>WALLET</span><strong>{money(balance)}</strong></div><div><span>PACKAGE</span><strong>GHS {price}</strong></div><div><span>PREDICTIONS</span><strong>{pkg?.predictions}</strong></div></div>
+        {balance < price && <div className="alert error">Insufficient wallet balance. You need GHS {price} before you can submit.</div>}
         <label className="upload-box">
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} />
-          {preview ? (
-            <img src={preview} alt="Selected match screenshot" />
-          ) : (
-            <><strong>Choose screenshot</strong><span>PNG, JPG or WEBP</span></>
-          )}
+          <input type="file" accept="image/*" onChange={handleFile} />
+          {preview ? <img src={preview} alt="Selected match screenshot" /> : <><strong>Choose screenshot</strong><span>PNG, JPG or WEBP</span></>}
         </label>
-
-        {!prediction && (
-          <button
-            className="btn btn-primary big-btn"
-            type="button"
-            disabled={!file || balance < price || analyzing}
-            onClick={analyzeScreenshot}
-          >
-            {analyzing ? "Reading screenshot..." : "Analyze Screenshot"}
-          </button>
-        )}
-
-        {analysisError && <div className="alert error">{analysisError}</div>}
-
-        {prediction && (
-          <div className="prediction-result-card">
-            <div className="prediction-result-heading">
-              <span className="eyebrow">SURE PREDICTION RESULT</span>
-              <span className="prediction-confidence">{prediction.confidence || "Medium"}</span>
-            </div>
-
-            <div className="prediction-match">
-              {prediction.home_team || "Home team"}
-              <strong>VS</strong>
-              {prediction.away_team || "Away team"}
-            </div>
-
-            <div className="prediction-main-winner">
-              <span>🏆 WINNER</span>
-              <strong>{prediction.predicted_winner || "Unable to determine"}</strong>
-            </div>
-
-            <div className="prediction-grid">
-              <div className="prediction-stat">
-                <span>⚽ GOAL PREDICTION</span>
-                <strong>{prediction.goal_prediction || "Unavailable"}</strong>
-              </div>
-              <div className="prediction-stat">
-                <span>📊 OVER/UNDER</span>
-                <strong>{prediction.over_under || "Unavailable"}</strong>
-              </div>
-              <div className="prediction-stat">
-                <span>🤝 BOTH TEAMS TO SCORE</span>
-                <strong>{prediction.btts || "Unavailable"}</strong>
-              </div>
-              <div className="prediction-stat">
-                <span>🎯 POSSIBLE SCORE</span>
-                <strong>{prediction.possible_score || "Unavailable"}</strong>
-              </div>
-            </div>
-
-            {prediction.odds && (
-              <div className="prediction-odds">Displayed odds: {prediction.odds}</div>
-            )}
-
-            <div className="prediction-reason">
-              {prediction.reason || "The result is based on the information readable from the submitted screenshot."}
-            </div>
-
-            <div className="prediction-disclaimer">
-              These are automated market-based predictions, not guaranteed match results. Goal and BTTS fields are estimates when those markets are not visible in the screenshot.
-            </div>
-
-            {!submitted && (
-              <button
-                className="btn btn-primary big-btn"
-                type="button"
-                style={{ marginTop: 16 }}
-                onClick={() => { setSubmitted(true); onSubmit(); }}
-              >
-                Submit Prediction Request
-              </button>
-            )}
-          </div>
-        )}
-
-        {submitted && (
-          <div className="prediction-status">
-            Prediction request submitted for manual processing. The administrator will handle the package deduction and prediction credit.
-          </div>
-        )}
-
-        {ocrText && (
-          <details className="ocr-details">
-            <summary>Show detected screenshot text</summary>
-            <pre>{ocrText}</pre>
-          </details>
-        )}
+        <button className="btn btn-primary big-btn" type="button" disabled={!file || balance < price} onClick={() => setSubmitted(true)}>
+          {submitted ? "Screenshot received" : "Submit Sure Prediction"}
+        </button>
+        {submitted && <div className="prediction-status">Request submitted for manual processing. The administrator will handle the package deduction and prediction credit.</div>}
       </div>
     </div>
   );
@@ -1460,6 +1338,7 @@ function AdminPanel({ onRefresh }) {
   const [adminBets, setAdminBets] = useState([]);
   const [adminTransactions, setAdminTransactions] = useState([]);
   const [manualWithdrawals, setManualWithdrawals] = useState([]);
+  const [predictionActivity, setPredictionActivity] = useState([]);
   const [withdrawalNote, setWithdrawalNote] = useState("");
   const [userId, setUserId] = useState("");
   const [amount, setAmount] = useState("");
@@ -1476,14 +1355,15 @@ function AdminPanel({ onRefresh }) {
   async function loadAdmin() {
     setError("");
 
-    const [u, b, t, w] = await Promise.all([
+    const [u, b, t, w, a] = await Promise.all([
       supabase.rpc("admin_get_users"),
       supabase.rpc("admin_get_bets"),
       supabase.rpc("admin_get_transactions"),
       supabase.rpc("admin_get_manual_withdrawals"),
+      supabase.from("prediction_activity").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
 
-    const firstError = u.error || b.error || t.error || w.error;
+    const firstError = u.error || b.error || t.error || w.error || a.error;
 
     if (firstError) {
       setError(firstError.message || "Admin data could not be loaded.");
@@ -1494,6 +1374,7 @@ function AdminPanel({ onRefresh }) {
     setAdminBets(b.data || []);
     setAdminTransactions(t.data || []);
     setManualWithdrawals(w.data || []);
+    setPredictionActivity(a.data || []);
   }
 
   async function adjustWallet(direction) {
@@ -1622,6 +1503,50 @@ function AdminPanel({ onRefresh }) {
             {manualWithdrawals.filter((w) => w.status === "pending").length}
           </strong>
         </div>
+        <div className="admin-stat blue-stat">
+          <span>SURE PREDICTION ACTIVITY</span>
+          <strong>{predictionActivity.length}</strong>
+        </div>
+      </div>
+
+      <div className="admin-card">
+        <div className="admin-card-head">
+          <div>
+            <span className="eyebrow">LIVE ACTIVITY</span>
+            <h3>Sure Prediction Notifications</h3>
+          </div>
+          <span className="count-badge">{predictionActivity.length} recent</span>
+        </div>
+
+        {predictionActivity.length === 0 ? (
+          <div className="admin-empty">No Sure Prediction activity yet.</div>
+        ) : (
+          <div className="admin-table">
+            {predictionActivity.slice(0, 20).map((activity) => (
+              <div className="admin-table-row" key={activity.id}>
+                <div>
+                  <strong>
+                    {activity.activity_type === "prediction_viewed"
+                      ? "👁️ Prediction viewed"
+                      : activity.activity_type === "prediction_submitted"
+                      ? "📸 Screenshot submitted"
+                      : activity.activity_type === "package_selected"
+                      ? "💰 Package selected"
+                      : String(activity.activity_type || "Activity")}
+                  </strong>
+                  <span>
+                    {activity.game || "Unknown game"} • User {String(activity.user_id || "").slice(0, 8)}
+                    {activity.package_price ? ` • GHS ${Number(activity.package_price).toLocaleString("en-GH")}` : ""}
+                  </span>
+                </div>
+                <div className="admin-bet-right">
+                  <span>{activity.prediction_count ? `${activity.prediction_count} prediction${activity.prediction_count > 1 ? "s" : ""}` : ""}</span>
+                  <span>{fmtDate(activity.created_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="admin-grid">
