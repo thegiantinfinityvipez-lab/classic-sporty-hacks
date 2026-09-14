@@ -7,6 +7,19 @@ const money = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
+
+const virtualGames = [
+  { name: "Virtual Football", icon: "⚽", desc: "Fast football fixtures and match-style virtual action." },
+  { name: "Virtual Horse Racing", icon: "🏇", desc: "Quick virtual horse races with multiple runners." },
+  { name: "Virtual Basketball", icon: "🏀", desc: "High-tempo virtual basketball matchups." },
+  { name: "Virtual Tennis", icon: "🎾", desc: "Rapid virtual tennis matches and sets." },
+  { name: "Virtual Greyhounds", icon: "🐕", desc: "Short virtual greyhound races." },
+  { name: "Virtual Racing", icon: "🏎️", desc: "Fast virtual motor racing events." },
+  { name: "Virtual League", icon: "🏆", desc: "League-style virtual football rounds." },
+  { name: "Virtual Penalty", icon: "🥅", desc: "Penalty shootout-style virtual action." },
+  { name: "Virtual Speedway", icon: "🏁", desc: "Quick speedway-style virtual races." },
+  { name: "Retro Bowl", icon: "🎮", desc: "Classic arcade-inspired virtual football experience." },
+];
 const fmtDate = (v) => {
   if (!v) return "";
   try {
@@ -45,10 +58,7 @@ function App() {
 
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawMethod, setWithdrawMethod] = useState("Mobile Money");
-  const [withdrawProvider, setWithdrawProvider] = useState("MTN");
-  const [withdrawName, setWithdrawName] = useState("");
   const [withdrawDestination, setWithdrawDestination] = useState("");
-  const [manualWithdrawals, setManualWithdrawals] = useState([]);
 
   const isAdmin = profile?.role === "admin" && profile?.is_active !== false;
 
@@ -92,10 +102,6 @@ function App() {
 
   useEffect(() => {
     if (session) loadAll();
-  }, [session]);
-
-  useEffect(() => {
-    if (session) verifyReturnedPayment();
   }, [session]);
 
   async function loadAll() {
@@ -193,7 +199,7 @@ function App() {
   }
 
   async function loadUserData() {
-    const [betsResult, txResult, withdrawalsResult] = await Promise.all([
+    const [betsResult, txResult] = await Promise.all([
       supabase
         .from("bets")
         .select("*")
@@ -204,16 +210,13 @@ function App() {
         .select("*")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: false }),
-      supabase.rpc("get_my_manual_withdrawals"),
     ]);
 
     if (betsResult.error) throw betsResult.error;
     if (txResult.error) throw txResult.error;
-    if (withdrawalsResult.error) throw withdrawalsResult.error;
 
     setBets(betsResult.data || []);
     setTransactions(txResult.data || []);
-    setManualWithdrawals(withdrawalsResult.data || []);
   }
 
   function flash(text) {
@@ -335,127 +338,30 @@ function App() {
     }
   }
 
-  async function handleRealDeposit(e) {
-    if (e) e.preventDefault();
+  async function requestDeposit(e) {
+    e.preventDefault();
     clearError();
 
     const amount = Number(depositAmount);
-
-    if (!session?.user) {
-      setError("Please log in before making a deposit.");
-      return;
-    }
-
-    if (!amount || amount <= 0) {
-      setError("Enter a valid deposit amount.");
-      return;
-    }
-
-    if (amount < 1) {
-      setError("Minimum deposit is GHS 1.00.");
-      return;
-    }
-
-    const userEmail = session.user.email;
-
-    if (!userEmail) {
-      setError("Your account does not have an email address.");
-      return;
-    }
+    if (!amount || amount <= 0) return setError("Enter a valid deposit amount.");
+    if (!depositReference.trim())
+      return setError("Enter the payment/reference number.");
 
     setBusy(true);
-    setError("");
-    setMessage("Starting Mobile Money payment...");
-
     try {
-      const callbackUrl =
-        `${window.location.origin}${window.location.pathname}?payment=success`;
-
-      const { data, error: e1 } =
-        await supabase.functions.invoke("initialize-payment", {
-          body: {
-            amount,
-            email: userEmail,
-            callback_url: callbackUrl,
-          },
-        });
-
+      const { error: e1 } = await supabase.rpc("request_deposit", {
+        p_amount: amount,
+        p_payment_method: depositMethod,
+        p_payment_reference: depositReference.trim(),
+      });
       if (e1) throw e1;
 
-      if (!data?.success) {
-        throw new Error(data?.error || "Unable to start payment.");
-      }
-
-      if (!data?.authorization_url) {
-        throw new Error("Paystack did not return a payment link.");
-      }
-
-      if (data.reference) {
-        sessionStorage.setItem(
-          "pending_paystack_reference",
-          data.reference
-        );
-      }
-
-      window.location.href = data.authorization_url;
-    } catch (e1) {
-      console.error("Deposit error:", e1);
-      setError(e1?.message || "Unable to start the deposit.");
-      setMessage("");
-      setBusy(false);
-    }
-  }
-
-  async function verifyReturnedPayment() {
-    const params = new URLSearchParams(window.location.search);
-    const payment = params.get("payment");
-
-    if (payment !== "success") return;
-
-    const reference =
-      params.get("reference") ||
-      params.get("trxref") ||
-      sessionStorage.getItem("pending_paystack_reference");
-
-    if (!reference) {
-      setError("Payment returned successfully, but no payment reference was found.");
-      return;
-    }
-
-    setBusy(true);
-    setError("");
-    setMessage("Verifying your payment...");
-
-    try {
-      const { data, error: e1 } =
-        await supabase.functions.invoke("verify-payment", {
-          body: { reference },
-        });
-
-      if (e1) throw e1;
-
-      if (!data?.success) {
-        throw new Error(
-          data?.message || data?.error || "Payment could not be verified yet."
-        );
-      }
-
-      sessionStorage.removeItem("pending_paystack_reference");
-      await loadWallet();
-      await loadUserData();
       setDepositAmount("");
-      setPage("wallet");
-      setMessage(data.message || "Payment verified and wallet credited.");
-
-      window.history.replaceState(
-        {},
-        document.title,
-        window.location.pathname
-      );
+      setDepositReference("");
+      await loadUserData();
+      flash("Deposit request submitted. Your balance changes after verification.");
     } catch (e1) {
-      console.error("Payment verification error:", e1);
-      setError(e1?.message || "Payment verification failed.");
-      setMessage("");
+      setError(e1.message || "Deposit request failed.");
     } finally {
       setBusy(false);
     }
@@ -466,54 +372,26 @@ function App() {
     clearError();
 
     const amount = Number(withdrawAmount);
-    const phone = withdrawDestination.trim();
-    const recipientName = withdrawName.trim();
-
     if (!amount || amount <= 0)
       return setError("Enter a valid withdrawal amount.");
-
-    if (amount < 10)
-      return setError("Minimum withdrawal is GHS 10.00.");
-
-    if (withdrawMethod !== "Mobile Money")
-      return setError("Please use Mobile Money.");
-
-    if (!recipientName)
-      return setError("Enter the name registered on the MoMo account.");
-
-    if (!/^0\d{9}$/.test(phone))
-      return setError("Enter a valid Ghana mobile number, e.g. 0551234567.");
-
-    if (Number(wallet?.balance || 0) < amount)
-      return setError("Insufficient wallet balance.");
+    if (!withdrawDestination.trim())
+      return setError("Enter your payment destination.");
 
     setBusy(true);
-    setMessage("Submitting your withdrawal request...");
-
     try {
-      const { data, error: e1 } = await supabase.rpc(
-        "request_manual_withdrawal",
-        {
-          p_amount: amount,
-          p_provider: withdrawProvider,
-          p_account_name: recipientName,
-          p_phone: phone,
-        }
-      );
-
+      const { error: e1 } = await supabase.rpc("request_withdrawal", {
+        p_amount: amount,
+        p_payment_method: withdrawMethod,
+        p_destination: withdrawDestination.trim(),
+      });
       if (e1) throw e1;
 
       setWithdrawAmount("");
       setWithdrawDestination("");
-      setWithdrawName("");
       await Promise.all([loadWallet(), loadUserData()]);
-      setMessage(
-        "Withdrawal request submitted. Your wallet balance has been held while the request is processed."
-      );
+      flash("Withdrawal request submitted.");
     } catch (e1) {
-      console.error("Manual withdrawal error:", e1);
-      setError(e1?.message || "Withdrawal request failed.");
-      setMessage("");
+      setError(e1.message || "Withdrawal request failed.");
     } finally {
       setBusy(false);
     }
@@ -620,6 +498,7 @@ function App() {
       <nav style={styles.nav}>
         {[
           ["home", "Matches"],
+          ["virtuals", "Virtual Games"],
           ["bets", "My Bets"],
           ["wallet", "Wallet"],
           ["transactions", "Transactions"],
@@ -770,6 +649,43 @@ function App() {
           </>
         )}
 
+        {page === "virtuals" && (
+          <section>
+            <section style={styles.virtualHero}>
+              <div>
+                <div style={styles.virtualEyebrow}>VIRTUAL SPORTS</div>
+                <h1 style={{ margin: "6px 0 8px" }}>10 Virtual Games</h1>
+                <p style={{ margin: 0, opacity: 0.9 }}>
+                  Choose a virtual game below. These cards restore your Virtual Games section in the interface.
+                </p>
+              </div>
+              <div style={styles.virtualCount}>10</div>
+            </section>
+
+            <div style={styles.virtualGrid}>
+              {virtualGames.map((game) => (
+                <article key={game.name} style={styles.virtualCard}>
+                  <div style={styles.virtualIcon}>{game.icon}</div>
+                  <h3 style={{ margin: "4px 0 6px" }}>{game.name}</h3>
+                  <p style={styles.muted}>{game.desc}</p>
+                  <button
+                    style={styles.virtualButton}
+                    onClick={() =>
+                      flash(`${game.name} opened. Connect your virtual-games provider here for real gameplay.`)
+                    }
+                  >
+                    Play Now
+                  </button>
+                </article>
+              ))}
+            </div>
+
+            <div style={styles.virtualNote}>
+              <strong>Important:</strong> this restores the 10-game Virtual Games screen. Real playable virtual results still require the virtual-games provider/API that was not present in this saved App.jsx.
+            </div>
+          </section>
+        )}
+
         {page === "bets" && (
           <section>
             <h2>My Bets</h2>
@@ -810,11 +726,11 @@ function App() {
             </div>
 
             <div style={styles.twoCol}>
-              <form style={styles.card} onSubmit={handleRealDeposit}>
-                <h3>Deposit via Mobile Money</h3>
+              <form style={styles.card} onSubmit={requestDeposit}>
+                <h3>Deposit request</h3>
                 <p style={styles.muted}>
-                  Enter the amount and continue to secure Paystack checkout.
-                  Your wallet is credited after the payment is verified.
+                  Submit your payment reference. The wallet is credited only
+                  after payment verification.
                 </p>
                 <input
                   style={styles.input}
@@ -825,21 +741,35 @@ function App() {
                   value={depositAmount}
                   onChange={(e) => setDepositAmount(e.target.value)}
                 />
+                <select
+                  style={styles.input}
+                  value={depositMethod}
+                  onChange={(e) => setDepositMethod(e.target.value)}
+                >
+                  <option>Mobile Money</option>
+                  <option>Bank Transfer</option>
+                </select>
+                <input
+                  style={styles.input}
+                  placeholder="Payment/reference number"
+                  value={depositReference}
+                  onChange={(e) => setDepositReference(e.target.value)}
+                />
                 <button style={styles.primary} disabled={busy}>
-                  {busy ? "Processing..." : "Deposit with Mobile Money"}
+                  Submit deposit
                 </button>
               </form>
 
               <form style={styles.card} onSubmit={requestWithdrawal}>
-                <h3>Withdraw to Mobile Money</h3>
+                <h3>Withdrawal request</h3>
                 <p style={styles.muted}>
-                  Submit a withdrawal request to your Ghana MoMo number.
-                  Your balance is held until an admin processes the request.
+                  Use an account or mobile-money destination you are authorized
+                  to receive funds at.
                 </p>
                 <input
                   style={styles.input}
                   type="number"
-                  min="10"
+                  min="0"
                   step="0.01"
                   placeholder="Amount (GHS)"
                   value={withdrawAmount}
@@ -851,56 +781,17 @@ function App() {
                   onChange={(e) => setWithdrawMethod(e.target.value)}
                 >
                   <option>Mobile Money</option>
-                </select>
-                <select
-                  style={styles.input}
-                  value={withdrawProvider}
-                  onChange={(e) => setWithdrawProvider(e.target.value)}
-                >
-                  <option value="MTN">MTN Mobile Money</option>
-                  <option value="VOD">Telecel Cash</option>
-                  <option value="ATL">AirtelTigo Money</option>
+                  <option>Bank Transfer</option>
                 </select>
                 <input
                   style={styles.input}
-                  placeholder="MoMo account name"
-                  value={withdrawName}
-                  onChange={(e) => setWithdrawName(e.target.value)}
-                />
-                <input
-                  style={styles.input}
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  placeholder="MoMo number e.g. 0551234567"
+                  placeholder="Destination/account"
                   value={withdrawDestination}
-                  onChange={(e) =>
-                    setWithdrawDestination(e.target.value.replace(/\D/g, "").slice(0, 10))
-                  }
+                  onChange={(e) => setWithdrawDestination(e.target.value)}
                 />
                 <button style={styles.primary} disabled={busy}>
-                  {busy ? "Processing..." : "Withdraw to Mobile Money"}
+                  Submit withdrawal
                 </button>
-                <div style={styles.small}>
-                  Minimum withdrawal: GHS 10.00. Requests are processed manually.
-                </div>
-
-                {manualWithdrawals.length > 0 && (
-                  <div style={{ marginTop: 14 }}>
-                    <strong>Recent withdrawal requests</strong>
-                    {manualWithdrawals.slice(0, 5).map((w) => (
-                      <div key={w.id} style={{ ...styles.card, marginTop: 8, padding: 12 }}>
-                        <div style={styles.row}>
-                          <span>{money(w.amount)}</span>
-                          <strong>{String(w.status || "pending").toUpperCase()}</strong>
-                        </div>
-                        <div style={styles.small}>{w.provider} • {w.phone}</div>
-                        <div style={styles.small}>{fmtDate(w.created_at)}</div>
-                        {w.admin_note && <div style={styles.small}>{w.admin_note}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </form>
             </div>
           </section>
@@ -940,8 +831,6 @@ function AdminPanel({ onRefresh }) {
   const [users, setUsers] = useState([]);
   const [adminBets, setAdminBets] = useState([]);
   const [adminTransactions, setAdminTransactions] = useState([]);
-  const [manualWithdrawals, setManualWithdrawals] = useState([]);
-  const [withdrawalNote, setWithdrawalNote] = useState("");
   const [userId, setUserId] = useState("");
   const [amount, setAmount] = useState("");
   const [settleBetId, setSettleBetId] = useState("");
@@ -957,16 +846,15 @@ function AdminPanel({ onRefresh }) {
   async function loadAdmin() {
     setError("");
 
-    const [u, b, t, w] = await Promise.all([
+    const [u, b, t] = await Promise.all([
       supabase.rpc("admin_get_users"),
       supabase.rpc("admin_get_bets"),
       supabase.rpc("admin_get_transactions"),
-      supabase.rpc("admin_get_manual_withdrawals"),
     ]);
 
-    if (u.error || b.error || t.error || w.error) {
+    if (u.error || b.error || t.error) {
       setError(
-        (u.error || b.error || t.error || w.error)?.message ||
+        (u.error || b.error || t.error)?.message ||
           "Admin data could not be loaded."
       );
       return;
@@ -975,7 +863,6 @@ function AdminPanel({ onRefresh }) {
     setUsers(u.data || []);
     setAdminBets(b.data || []);
     setAdminTransactions(t.data || []);
-    setManualWithdrawals(w.data || []);
   }
 
   async function adjustWallet(direction) {
@@ -1037,85 +924,11 @@ function AdminPanel({ onRefresh }) {
     }
   }
 
-  async function processManualWithdrawal(id, action) {
-    setBusy(true);
-    setError("");
-    try {
-      const { error: e } = await supabase.rpc(
-        "admin_mark_manual_withdrawal",
-        {
-          p_request_id: id,
-          p_action: action,
-          p_note: withdrawalNote.trim() || null,
-        }
-      );
-      if (e) throw e;
-
-      setWithdrawalNote("");
-      setMsg(
-        action === "paid"
-          ? "Withdrawal marked as paid."
-          : "Withdrawal rejected and wallet refunded."
-      );
-      await loadAdmin();
-      await onRefresh();
-    } catch (e) {
-      setError(e.message || "Withdrawal update failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <section>
       <h2>Admin Dashboard</h2>
       {error && <div style={styles.error}>{error}</div>}
       {msg && <div style={styles.success}>{msg}</div>}
-
-      <div style={styles.card}>
-        <h3>Manual Withdrawal Requests</h3>
-        <p style={styles.muted}>Send the MoMo payment manually, then mark the request as paid.</p>
-        <input
-          style={styles.input}
-          placeholder="Optional admin note"
-          value={withdrawalNote}
-          onChange={(e) => setWithdrawalNote(e.target.value)}
-        />
-        {manualWithdrawals.length === 0 ? (
-          <div style={styles.small}>No withdrawal requests.</div>
-        ) : (
-          manualWithdrawals.map((w) => (
-            <div key={w.id} style={{ ...styles.card, marginTop: 10 }}>
-              <div style={styles.row}>
-                <strong>{money(w.amount)}</strong>
-                <strong>{String(w.status).toUpperCase()}</strong>
-              </div>
-              <div style={styles.small}>{w.user_name || w.user_email || w.user_id}</div>
-              <div style={styles.small}>{w.provider} • {w.account_name} • {w.phone}</div>
-              <div style={styles.small}>{fmtDate(w.created_at)}</div>
-              {w.status === "pending" && (
-                <div style={styles.buttonRow}>
-                  <button
-                    style={styles.primary}
-                    disabled={busy}
-                    onClick={() => processManualWithdrawal(w.id, "paid")}
-                  >
-                    Mark Paid
-                  </button>
-                  <button
-                    style={styles.secondary}
-                    disabled={busy}
-                    onClick={() => processManualWithdrawal(w.id, "rejected")}
-                  >
-                    Reject & Refund
-                  </button>
-                </div>
-              )}
-              {w.admin_note && <div style={styles.small}>Note: {w.admin_note}</div>}
-            </div>
-          ))
-        )}
-      </div>
 
       <div style={styles.twoCol}>
         <div style={styles.card}>
@@ -1503,6 +1316,77 @@ const styles = {
     padding: 12,
     cursor: "pointer",
     fontWeight: 700,
+  },
+  virtualHero: {
+    background: "linear-gradient(135deg, #0a8f4d, #19b86a)",
+    color: "white",
+    borderRadius: 18,
+    padding: 22,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 18,
+    boxShadow: "0 12px 30px rgba(8,120,63,.18)",
+  },
+  virtualEyebrow: {
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 1.4,
+    opacity: 0.9,
+  },
+  virtualCount: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    background: "rgba(255,255,255,.18)",
+    display: "grid",
+    placeItems: "center",
+    fontSize: 28,
+    fontWeight: 900,
+    flexShrink: 0,
+  },
+  virtualGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
+    gap: 14,
+  },
+  virtualCard: {
+    background: "white",
+    border: "1px solid #e1e8e4",
+    borderRadius: 16,
+    padding: 18,
+    boxShadow: "0 7px 20px rgba(0,0,0,.05)",
+  },
+  virtualIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    display: "grid",
+    placeItems: "center",
+    fontSize: 28,
+    background: "#e9fff2",
+    marginBottom: 12,
+  },
+  virtualButton: {
+    width: "100%",
+    border: 0,
+    background: "#08783f",
+    color: "white",
+    padding: "11px 12px",
+    borderRadius: 9,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  virtualNote: {
+    marginTop: 16,
+    background: "#fff8df",
+    border: "1px solid #f2dda0",
+    color: "#68510c",
+    padding: 13,
+    borderRadius: 10,
+    lineHeight: 1.45,
+    fontSize: 13,
   },
   loading: {
     minHeight: "100vh",
