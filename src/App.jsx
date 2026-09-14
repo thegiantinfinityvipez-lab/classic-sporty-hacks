@@ -34,6 +34,19 @@ const LEAGUES = [
   "LIGA_MX",
 ];
 
+const GAME_CATALOG = [
+  { key: "casino", icon: "🎰", title: "CASINO", subtitle: "Instant casino games", description: "Choose a package and enter the Casino area.", tone: "pink" },
+  { key: "bottle", icon: "🍾", title: "FLIP THE BOTTLE", subtitle: "Quick bottle rounds", description: "Fast Flip the Bottle rounds with simple game play.", tone: "orange" },
+  { key: "football", icon: "⚽", title: "FOOTBALL", subtitle: "Virtual football", description: "Virtual football packages with named teams and match rounds.", tone: "blue" },
+];
+
+const PACKAGES = [
+  { price: 300, predictions: 1, icon: "⚡" },
+  { price: 400, predictions: 2, icon: "🔥" },
+  { price: 500, predictions: 3, icon: "💎" },
+];
+
+
 function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -49,6 +62,9 @@ function App() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [sportsLoading, setSportsLoading] = useState(false);
+  const [selectedGame, setSelectedGame] = useState(null);
+  const [predictionGame, setPredictionGame] = useState(null);
+  const [selectedPackage, setSelectedPackage] = useState(null);
 
   const [authMode, setAuthMode] = useState("login");
   const [name, setName] = useState("");
@@ -315,6 +331,39 @@ function App() {
     await supabase.auth.signOut();
   }
 
+  function openGame(game) {
+    setSelectedGame(game);
+    setPage("game");
+  }
+
+  function choosePackage(price) {
+    const pkg = PACKAGES.find((item) => item.price === price);
+    setSelectedPackage(pkg || null);
+    setDepositAmount(String(price));
+    setPage("wallet");
+    flash(`GHS ${price} package selected. The amount has been added to Deposit.`);
+  }
+
+  function openSurePrediction(game) {
+    if (!selectedPackage) {
+      setError("Choose a Sure Prediction package first.");
+      return;
+    }
+    const balance = Number(wallet?.balance || 0);
+    if (balance < Number(selectedPackage.price)) {
+      setDepositAmount(String(selectedPackage.price));
+      setPage("wallet");
+      flash(`You need GHS ${selectedPackage.price} in your wallet before submitting this package.`);
+      return;
+    }
+    setPredictionGame(game);
+  }
+
+  function confirmSurePrediction() {
+    setPredictionGame(null);
+    flash("Sure Prediction request submitted for manual processing.");
+  }
+
   function addToSlip(match, odd) {
     const item = {
       matchId: match.id,
@@ -516,7 +565,7 @@ function App() {
             <div className="brand-mark">CS</div>
             <div>
               <div className="brand">CLASSIC SPORTY HACKS</div>
-              <div className="brand-sub">Football • Odds • Match Centre</div>
+              <div className="brand-sub">Games • Predictions • Wallet</div>
             </div>
           </div>
         </header>
@@ -661,10 +710,10 @@ function App() {
             onClick={() => setPage("home")}
           />
           <NavButton
-            active={page === "home"}
+            active={page === "game" && selectedGame?.key === "football"}
             icon="⚽"
-            label="Matches"
-            onClick={() => setPage("home")}
+            label="Football"
+            onClick={() => openGame(GAME_CATALOG[2])}
           />
           <NavButton
             active={page === "virtual"}
@@ -715,295 +764,62 @@ function App() {
           {error && <div className="alert error">{error}</div>}
 
           {page === "home" && (
-            <>
-              <section className="hero-banner">
-                <div className="hero-copy">
-                  <span className="hero-kicker">WELCOME TO CLASSIC SPORTY</span>
-                  <h1>Pick your match.<br /><span>Build your bet.</span></h1>
-                  <p>
-                    Browse today's fixtures, compare the odds and build your selections from one clean football dashboard.
-                  </p>
-                  <div className="hero-buttons">
-                    <button
-                      className="btn btn-primary"
-                      onClick={() =>
-                        document
-                          .getElementById("matches-section")
-                          ?.scrollIntoView({ behavior: "smooth" })
-                      }
-                    >
-                      Explore matches
-                    </button>
-                    <button
-                      className="btn btn-white"
-                      onClick={() => setPage("wallet")}
-                    >
-                      Add funds
-                    </button>
-                  </div>
-                </div>
+            <section className="page-section home-games-page">
+              <PageTitle
+                eyebrow="CLASSIC SPORTY HACKS"
+                title="Choose Your Game"
+                text="Pick a game below. Choose a package and continue through the wallet deposit area."
+              />
 
-                <div className="hero-art">
-                  <div className="football">⚽</div>
-                  <div className="hero-chip chip-one">LIVE ODDS</div>
-                  <div className="hero-chip chip-two">TOP EVENTS</div>
-                  <div className="hero-score">
-                    <span>FOOTBALL</span>
-                    <strong>24/7</strong>
-                  </div>
-                </div>
-              </section>
-
-              <section className="feature-grid">
-                <FeatureCard
-                  icon="⚽"
-                  title="Matches"
-                  text={`${matches.length} fixtures available`}
-                  color="blue"
-                />
-                <FeatureCard
-                  icon="🔥"
-                  title="Top Events"
-                  text="Popular football selections"
-                  color="orange"
-                />
-                <FeatureCard
-                  icon="🎮"
-                  title="Virtual Games"
-                  text="Fast virtual sports"
-                  color="pink"
-                />
-                <FeatureCard
-                  icon="💰"
-                  title="Wallet"
-                  text={money(wallet?.balance)}
-                  color="green"
-                />
-                <FeatureCard
-                  icon="🎟️"
-                  title="Bet Slip"
-                  text={
-                    betSlip.length
-                      ? `${betSlip.length} selection${betSlip.length > 1 ? "s" : ""}`
-                      : "No selections yet"
-                  }
-                  color="purple"
-                />
-              </section>
-
-              <section className="section-heading" id="matches-section">
-                <div>
-                  <span className="eyebrow">REAL FOOTBALL EVENTS</span>
-                  <h2>Top Events</h2>
-                  <p>Choose an outcome to add it to your bet slip.</p>
-                </div>
-                <button
-                  className="refresh-btn"
-                  onClick={refreshSportsMatches}
-                  disabled={sportsLoading}
-                >
-                  {sportsLoading ? "Refreshing..." : "↻ Refresh"}
-                </button>
-              </section>
-
-              <div className="content-with-slip">
-                <section className="matches-column">
-
-                  {matches.length === 0 ? (
-                    <div className="empty-card">
-                      <div className="empty-icon">⚽</div>
-                      <h3>No active matches yet</h3>
-                      <p>
-                        Your Supabase match feed has no active events at the
-                        moment.
-                      </p>
-                      <button
-                        className="btn btn-primary"
-                        onClick={refreshSportsMatches}
-                      >
-                        Refresh matches
-                      </button>
-                    </div>
-                  ) : (
-                    upcomingMatches.map((match) => {
-                      const groups = marketGroups(match.match_odds);
-
-                      return (
-                        <MatchCard
-                          key={match.id}
-                          match={match}
-                          groups={groups}
-                          onSelect={addToSlip}
-                        />
-                      );
-                    })
-                  )}
-                </section>
-
-                <BetSlip
-                  betSlip={betSlip}
-                  combinedOdds={combinedOdds}
-                  potentialWin={potentialWin}
-                  stake={stake}
-                  setStake={setStake}
-                  removeFromSlip={removeFromSlip}
-                  placeBet={placeBet}
-                  busy={busy}
-                />
+              <div className="home-game-grid">
+                {GAME_CATALOG.map((game) => (
+                  <GameChoiceCard key={game.key} game={game} onOpen={openGame} />
+                ))}
               </div>
 
-              <section className="bottom-panels">
-                <div className="info-panel winners-panel">
-                  <div className="panel-icon">🏆</div>
-                  <div>
-                    <span className="eyebrow">CLASSIC SPORTY</span>
-                    <h3>Play smart. Follow the action.</h3>
-                    <p>
-                      Keep your wallet funded, review your selections and
-                      monitor your betting history from your dashboard.
-                    </p>
-                  </div>
+              <div className="home-wallet-banner">
+                <div>
+                  <span className="eyebrow">YOUR WALLET</span>
+                  <h3>{money(wallet?.balance)}</h3>
+                  <p>Choose a package inside any game and the selected price will be carried to your Deposit page.</p>
                 </div>
-
-                <div className="info-panel live-panel">
-                  <div className="live-dot" />
-                  <div>
-                    <span className="eyebrow">LIVE CENTRE</span>
-                    <h3>Match action at a glance</h3>
-                    <p>
-                      Your available fixtures and current odds appear in the
-                      matches section above.
-                    </p>
-                  </div>
-                </div>
-              </section>
-            </>
+                <button className="btn btn-primary" onClick={() => setPage("wallet")}>Go to Deposit</button>
+              </div>
+            </section>
           )}
 
           {page === "virtual" && (
             <section className="page-section virtual-page">
               <PageTitle
-                eyebrow="VIRTUAL SPORTS"
-                title="Virtual Games"
-                text="Fast-paced virtual sports with scheduled game rounds."
+                eyebrow="GAMES"
+                title="Classic Sporty Games"
+                text="Choose one of the three available games below."
               />
 
               <div className="virtual-notice">
-                <div className="virtual-notice-icon">⚡</div>
+                <div className="virtual-notice-icon">🎮</div>
                 <div>
-                  <strong>Virtual Sports Hub</strong>
-                  <p>
-                    Choose a virtual sport below. These are the game categories
-                    for the platform; real-money virtual wagering should be
-                    connected to an approved virtual-sports provider before it
-                    is enabled for customers.
-                  </p>
+                  <strong>3 Games Available</strong>
+                  <p>Tap a game to open its own page. Packages are GHS 300, GHS 400 and GHS 500, and selecting a package takes the user to Deposit.</p>
                 </div>
               </div>
 
-              <div className="virtual-grid">
-                <VirtualGameCard
-                  icon="⚽"
-                  title="Virtual Football"
-                  subtitle="3-minute matches"
-                  description="Quick virtual football rounds with match markets."
-                  badge="POPULAR"
-                />
-                <VirtualGameCard
-                  icon="🏇"
-                  title="Virtual Horse Racing"
-                  subtitle="Next race soon"
-                  description="Fast virtual racing rounds and race markets."
-                  badge="FAST"
-                />
-                <VirtualGameCard
-                  icon="🏀"
-                  title="Virtual Basketball"
-                  subtitle="Rapid rounds"
-                  description="Short virtual basketball games with multiple outcomes."
-                  badge="NEW"
-                />
-                <VirtualGameCard
-                  icon="🎾"
-                  title="Virtual Tennis"
-                  subtitle="Quick matches"
-                  description="Virtual tennis rounds designed for fast gameplay."
-                  badge="LIVE SOON"
-                />
-                <VirtualGameCard
-                  icon="🐕"
-                  title="Virtual Greyhound Racing"
-                  subtitle="Fast races"
-                  description="Rapid virtual greyhound races with scheduled rounds."
-                  badge="FAST"
-                />
-                <VirtualGameCard
-                  icon="🏎️"
-                  title="Virtual Formula Racing"
-                  subtitle="Race every few minutes"
-                  description="High-speed virtual racing with multiple finishing outcomes."
-                  badge="NEW"
-                />
-                <VirtualGameCard
-                  icon="🏐"
-                  title="Virtual Volleyball"
-                  subtitle="Quick rounds"
-                  description="Fast virtual volleyball matches with scheduled results."
-                  badge="COMING SOON"
-                />
-                <VirtualGameCard
-                  icon="⚾"
-                  title="Virtual Baseball"
-                  subtitle="Short games"
-                  description="Virtual baseball games with quick simulated matchups."
-                  badge="COMING SOON"
-                />
-                <VirtualGameCard
-                  icon="🏒"
-                  title="Virtual Ice Hockey"
-                  subtitle="Rapid matches"
-                  description="Quick virtual ice hockey matchups and result markets."
-                  badge="COMING SOON"
-                />
-                <VirtualGameCard
-                  icon="🤾"
-                  title="Virtual Handball"
-                  subtitle="Fast matches"
-                  description="Short virtual handball rounds with multiple outcomes."
-                  badge="COMING SOON"
-                />
-                <VirtualGameCard
-                  icon="🎡"
-                  title="Spin"
-                  subtitle="Quick spin rounds"
-                  description="A virtual spin game interface for fast rounds and outcomes."
-                  badge="COMING SOON"
-                />
-                <VirtualGameCard
-                  icon="🎲"
-                  title="Dice"
-                  subtitle="Rapid dice rounds"
-                  description="Virtual dice rounds with multiple possible outcomes."
-                  badge="COMING SOON"
-                />
-                <VirtualGameCard
-                  icon="🃏"
-                  title="Cards"
-                  subtitle="Virtual card games"
-                  description="Virtual card rounds with selectable game outcomes."
-                  badge="COMING SOON"
-                />
-              </div>
-
-              <div className="virtual-round-card">
-                <div>
-                  <span className="eyebrow">NEXT VIRTUAL ROUND</span>
-                  <h3>Virtual Football • Matchday 001</h3>
-                  <p>Provider connection required before this round can accept real-money bets.</p>
-                </div>
-                <span className="virtual-coming">COMING SOON</span>
+              <div className="home-game-grid">
+                {GAME_CATALOG.map((game) => (
+                  <GameChoiceCard key={game.key} game={game} onOpen={openGame} />
+                ))}
               </div>
             </section>
+          )}
+
+          {page === "game" && selectedGame && (
+            <GameDetailPage
+              game={selectedGame}
+              wallet={wallet}
+              onBack={() => setPage("virtual")}
+              onPackage={choosePackage}
+              onPrediction={() => openSurePrediction(selectedGame)}
+            />
           )}
 
           {page === "bets" && (
@@ -1018,13 +834,12 @@ function App() {
                 <div className="empty-card">
                   <div className="empty-icon">🎟️</div>
                   <h3>No bets yet</h3>
-                  <p>Select an odd from the Matches page and place your first
-                    bet.</p>
+                  <p>Your football bet history will appear here when you place a bet.</p>
                   <button
                     className="btn btn-primary"
                     onClick={() => setPage("home")}
                   >
-                    Browse matches
+                    Go to Games
                   </button>
                 </div>
               ) : (
@@ -1072,6 +887,13 @@ function App() {
                 title="Wallet"
                 text="Deposit funds and request withdrawals."
               />
+
+              {selectedPackage && (
+                <div className="selected-package-banner">
+                  <div><span className="eyebrow">SURE PREDICTION PACKAGE</span><strong>GHS {selectedPackage.price} · {selectedPackage.predictions} prediction{selectedPackage.predictions > 1 ? "s" : ""}</strong><p>The selected amount is already filled into Deposit.</p></div>
+                  <button type="button" className="btn btn-secondary" onClick={() => setPage("game")}>Back to Game</button>
+                </div>
+              )}
 
               <div className="wallet-balance-card">
                 <div>
@@ -1294,6 +1116,9 @@ function App() {
           )}
 
           {page === "admin" && isAdmin && <AdminPanel onRefresh={loadAll} />}
+          {predictionGame && (
+            <PredictionModal game={predictionGame} pkg={selectedPackage} wallet={wallet} onClose={() => setPredictionGame(null)} onSubmit={confirmSurePrediction} />
+          )}
         </main>
       </div>
     </div>
@@ -1361,290 +1186,126 @@ function Stat({ label, value }) {
   );
 }
 
-function VirtualGameCard({ icon, title, subtitle, description, badge }) {
-  const [opened, setOpened] = useState(false);
-  const [result, setResult] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const runDemo = (type) => {
-    if (busy) return;
-    setBusy(true);
-    setResult("");
-
-    window.setTimeout(() => {
-      if (type === "dice") {
-        const a = Math.floor(Math.random() * 6) + 1;
-        const b = Math.floor(Math.random() * 6) + 1;
-        setResult(`🎲 Dice result: ${a} + ${b} = ${a + b}`);
-      } else if (type === "spin") {
-        const options = ["1.20x", "2.00x", "3.00x", "5.00x", "10.00x", "BONUS"];
-        setResult(`🎡 Spin landed on ${options[Math.floor(Math.random() * options.length)]}`);
-      } else if (type === "cards") {
-        const suits = ["♠", "♥", "♦", "♣"];
-        const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
-        const card = `${ranks[Math.floor(Math.random() * ranks.length)]}${suits[Math.floor(Math.random() * suits.length)]}`;
-        setResult(`🃏 Your demo card: ${card}`);
-      } else {
-        const outcomes = ["HOME WIN", "DRAW", "AWAY WIN"];
-        setResult(`🏆 Demo result: ${outcomes[Math.floor(Math.random() * outcomes.length)]}`);
-      }
-      setBusy(false);
-    }, 650);
-  };
-
-  const gameType = title.toLowerCase().includes("dice")
-    ? "dice"
-    : title.toLowerCase().includes("spin")
-      ? "spin"
-      : title.toLowerCase().includes("card")
-        ? "cards"
-        : "sport";
-
+function GameChoiceCard({ game, onOpen }) {
   return (
-    <article className={`virtual-game-card ${opened ? "is-open" : ""}`}>
-      <div className="virtual-card-top">
-        <div className="virtual-game-icon">{icon}</div>
-        <span className="virtual-badge">{badge}</span>
-      </div>
-
-      <div className="virtual-game-body">
-        <span className="eyebrow">{subtitle}</span>
-        <h3>{title}</h3>
-        <p>{description}</p>
-
-        <button
-          className="btn btn-primary"
-          type="button"
-          onClick={() => {
-            setOpened((current) => !current);
-            setResult("");
-          }}
-        >
-          {opened ? "Close Game" : "Open Game"}
-        </button>
-
-        {opened && (
-          <div className={`virtual-play-panel virtual-${gameType}`}>
-            <div className="virtual-play-head">
-              <div>
-                <span className="eyebrow">DEMO GAME SCREEN</span>
-                <strong>{icon} {title}</strong>
-              </div>
-              <span className="virtual-demo-pill">DEMO</span>
-            </div>
-
-            {gameType === "dice" && (
-              <>
-                <div className="dice-table">
-                  <div className="die">?</div>
-                  <div className="dice-plus">+</div>
-                  <div className="die">?</div>
-                </div>
-                <button className="virtual-action-btn" type="button" disabled={busy} onClick={() => runDemo("dice")}>
-                  {busy ? "Rolling…" : "Roll Dice"}
-                </button>
-              </>
-            )}
-
-            {gameType === "spin" && (
-              <>
-                <div className="spin-wheel">🎡</div>
-                <button className="virtual-action-btn" type="button" disabled={busy} onClick={() => runDemo("spin")}>
-                  {busy ? "Spinning…" : "Spin Now"}
-                </button>
-              </>
-            )}
-
-            {gameType === "cards" && (
-              <>
-                <div className="demo-card-deck">
-                  <div className="playing-card back">★</div>
-                  <div className="playing-card back offset">★</div>
-                </div>
-                <button className="virtual-action-btn" type="button" disabled={busy} onClick={() => runDemo("cards")}>
-                  {busy ? "Dealing…" : "Deal Card"}
-                </button>
-              </>
-            )}
-
-            {gameType === "sport" && (
-              <>
-                <div className="virtual-match-preview">
-                  <div><span>HOME</span><strong>{title.includes("Horse") ? "🏇 Red Star" : title.includes("Formula") ? "🏎️ Team A" : "🏠 Team A"}</strong></div>
-                  <span className="virtual-vs">VS</span>
-                  <div><span>AWAY</span><strong>{title.includes("Horse") ? "🏇 Blue Moon" : title.includes("Formula") ? "🏎️ Team B" : "✈️ Team B"}</strong></div>
-                </div>
-                <button className="virtual-action-btn" type="button" disabled={busy} onClick={() => runDemo("sport")}>
-                  {busy ? "Running…" : "Run Demo Round"}
-                </button>
-              </>
-            )}
-
-            {result && <div className="virtual-result">{result}</div>}
-            <small className="virtual-demo-note">Demo interface only — no real-money wager is placed.</small>
-          </div>
-        )}
-      </div>
+    <article className={`game-choice-card game-${game.tone}`} onClick={() => onOpen(game)}>
+      <div className="game-choice-icon">{game.icon}</div>
+      <span className="eyebrow">{game.subtitle}</span>
+      <h3>{game.title}</h3>
+      <p>{game.description}</p>
+      <button className="btn btn-primary" type="button" onClick={(e) => { e.stopPropagation(); onOpen(game); }}>
+        Open {game.title}
+      </button>
     </article>
   );
 }
 
-function MatchCard({ match, groups, onSelect }) {
+function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction }) {
+  const footballMatches = [
+    ["Real Madrid", "Barcelona"],
+    ["Manchester City", "Liverpool"],
+    ["Bayern Munich", "Borussia Dortmund"],
+    ["Arsenal", "Chelsea"],
+    ["Inter Milan", "AC Milan"],
+  ];
+
   return (
-    <article className="match-card">
-      <div className="match-header">
+    <section className="page-section game-detail-page">
+      <button className="back-link" type="button" onClick={onBack}>← Back to Games</button>
+
+      <div className="game-detail-hero">
+        <div className="game-detail-icon">{game.icon}</div>
         <div>
-          <span className="league-label">
-            {match.league || match.league_name || "FOOTBALL"}
-          </span>
-          <small>{fmtDate(match.start_time)}</small>
-        </div>
-        <span className="match-status">
-          {match.status || "SCHEDULED"}
-        </span>
-      </div>
-
-      <div className="teams-row">
-        <div className="team">
-          <div className="team-logo">{String(match.home_team || "H").slice(0, 1)}</div>
-          <strong>{match.home_team}</strong>
-          <small>HOME</small>
-        </div>
-
-        <div className="vs-block">
-          <span>VS</span>
-        </div>
-
-        <div className="team">
-          <div className="team-logo away">
-            {String(match.away_team || "A").slice(0, 1)}
-          </div>
-          <strong>{match.away_team}</strong>
-          <small>AWAY</small>
+          <span className="eyebrow">{game.subtitle}</span>
+          <h1>{game.title}</h1>
+          <p>Select a package below to continue to the Deposit page. Current wallet: <strong>{money(wallet?.balance)}</strong></p>
         </div>
       </div>
 
-      {Object.keys(groups).length === 0 ? (
-        <div className="no-odds">Odds not available for this match.</div>
-      ) : (
-        Object.entries(groups).slice(0, 4).map(([market, odds]) => (
-          <div className="market-block" key={market}>
-            <div className="market-title">
-              <span>{market}</span>
-              <small>SELECT</small>
-            </div>
-
-            <div className="odds-grid">
-              {odds.slice(0, 6).map((odd) => (
-                <button
-                  className="odd-button"
-                  key={odd.id || `${market}-${odd.selection}`}
-                  onClick={() => onSelect(match, odd)}
-                >
-                  <span>{odd.selection}</span>
-                  <strong>{Number(odd.odd).toFixed(2)}</strong>
-                </button>
-              ))}
-            </div>
+      {game.key === "football" && (
+        <div className="football-fixtures">
+          <div className="section-heading compact">
+            <div><span className="eyebrow">VIRTUAL FOOTBALL</span><h2>Today's Featured Teams</h2></div>
           </div>
-        ))
+          {footballMatches.map(([home, away]) => (
+            <div className="football-fixture" key={`${home}-${away}`}>
+              <div><span>HOME</span><strong>{home}</strong></div>
+              <b>VS</b>
+              <div className="away"><span>AWAY</span><strong>{away}</strong></div>
+            </div>
+          ))}
+        </div>
       )}
-    </article>
-  );
-}
 
-function BetSlip({
-  betSlip,
-  combinedOdds,
-  potentialWin,
-  stake,
-  setStake,
-  removeFromSlip,
-  placeBet,
-  busy,
-}) {
-  return (
-    <aside className="bet-slip">
-      <div className="slip-header">
+      <div className="package-heading">
         <div>
-          <span className="eyebrow">YOUR SELECTIONS</span>
-          <h3>Bet Slip</h3>
+          <span className="eyebrow">CHOOSE YOUR PACKAGE</span>
+          <h2>Choose a package · No expiry · Manual processing</h2>
         </div>
-        <span className="slip-count">{betSlip.length}</span>
       </div>
 
-      {betSlip.length === 0 ? (
-        <div className="empty-slip">
-          <div className="slip-illustration">🎟️</div>
-          <strong>Your bet slip is empty</strong>
-          <p>Tap any odds button to add a selection here.</p>
-        </div>
-      ) : (
-        <>
-          <div className="slip-items">
-            {betSlip.map((item) => (
-              <div
-                className="slip-item"
-                key={`${item.matchId}-${item.market}`}
-              >
-                <div className="slip-item-main">
-                  <strong>
-                    {item.homeTeam} <span>vs</span> {item.awayTeam}
-                  </strong>
-                  <span>
-                    {item.market} • {item.selection}
-                  </span>
-                </div>
-                <div className="slip-item-side">
-                  <b>{item.odd.toFixed(2)}</b>
-                  <button
-                    onClick={() =>
-                      removeFromSlip(item.matchId, item.market)
-                    }
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="slip-summary">
-            <div>
-              <span>Combined odds</span>
-              <strong>{combinedOdds.toFixed(2)}</strong>
+      <div className="package-grid">
+        {PACKAGES.map((pkg) => (
+          <button key={pkg.price} className="package-card" type="button" onClick={() => onPackage(pkg.price)}>
+            <div className="package-top">
+              <div><strong>GHS {pkg.price}</strong><span>AVAILABLE</span></div>
+              <i>{pkg.icon}</i>
             </div>
-            <div>
-              <span>Potential win</span>
-              <strong className="win-value">{money(potentialWin)}</strong>
-            </div>
-          </div>
-
-          <div className="stake-area">
-            <label>Stake amount</label>
-            <div className="stake-input-wrap">
-              <span>GHS</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={stake}
-                onChange={(e) => setStake(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <button
-            className="btn btn-primary big-btn"
-            onClick={placeBet}
-            disabled={busy}
-          >
-            {busy ? "Processing..." : "Place Bet"}
+            <h3>{pkg.predictions} prediction{pkg.predictions > 1 ? "s" : ""} per screenshot</h3>
+            <div className="package-tags"><span>{pkg.predictions} PREDICTION{pkg.predictions > 1 ? "S" : ""}</span><span>NO EXPIRY</span></div>
+            <div className="package-action">→ GET GHS {pkg.price}</div>
           </button>
-        </>
-      )}
-    </aside>
+        ))}
+      </div>
+
+      <div className="ai-prediction-card">
+        <div className="ai-icon">🤖</div>
+        <div>
+          <span className="eyebrow">SURE PREDICTION</span>
+          <h3>Send a screenshot for match analysis</h3>
+          <p>Upload a clear screenshot of the particular match. The AI feature should return analysis only when a secure server-side AI service is connected.</p>
+        </div>
+        <button className="btn btn-primary" type="button" onClick={onPrediction}>Sure Prediction</button>
+      </div>
+    </section>
+  );
+}
+
+function PredictionModal({ game, pkg, wallet, onClose, onSubmit }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const balance = Number(wallet?.balance || 0);
+  const price = Number(pkg?.price || 0);
+
+  function handleFile(e) {
+    const next = e.target.files?.[0];
+    if (!next) return;
+    setFile(next);
+    setPreview(URL.createObjectURL(next));
+    setSubmitted(false);
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="prediction-modal">
+        <button className="modal-close" type="button" onClick={onClose}>×</button>
+        <div className="ai-icon large">🤖</div>
+        <span className="eyebrow">{game.title} · SURE PREDICTION</span>
+        <h2>Submit your match screenshot</h2>
+        <p>Package: <strong>GHS {price}</strong> · <strong>{pkg?.predictions} prediction{pkg?.predictions > 1 ? "s" : ""}</strong></p>
+        <div className="prediction-wallet-check"><div><span>WALLET</span><strong>{money(balance)}</strong></div><div><span>PACKAGE</span><strong>GHS {price}</strong></div><div><span>PREDICTIONS</span><strong>{pkg?.predictions}</strong></div></div>
+        {balance < price && <div className="alert error">Insufficient wallet balance. You need GHS {price} before you can submit.</div>}
+        <label className="upload-box">
+          <input type="file" accept="image/*" onChange={handleFile} />
+          {preview ? <img src={preview} alt="Selected match screenshot" /> : <><strong>Choose screenshot</strong><span>PNG, JPG or WEBP</span></>}
+        </label>
+        <button className="btn btn-primary big-btn" type="button" disabled={!file || balance < price} onClick={() => setSubmitted(true)}>
+          {submitted ? "Screenshot received" : "Submit Sure Prediction"}
+        </button>
+        {submitted && <div className="prediction-status">Request submitted for manual processing. The administrator will handle the package deduction and prediction credit.</div>}
+      </div>
+    </div>
   );
 }
 
