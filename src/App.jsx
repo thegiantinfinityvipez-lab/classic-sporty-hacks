@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createWorker } from "tesseract.js";
 import { supabase } from "./supabase";
 import "./App.css";
 
@@ -1299,6 +1300,10 @@ function PredictionModal({ game, pkg, wallet, onClose, onSubmit }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [prediction, setPrediction] = useState(null);
+  const [analysisError, setAnalysisError] = useState("");
+  const [ocrText, setOcrText] = useState("");
   const balance = Number(wallet?.balance || 0);
   const price = Number(pkg?.price || 0);
 
@@ -1308,26 +1313,90 @@ function PredictionModal({ game, pkg, wallet, onClose, onSubmit }) {
     setFile(next);
     setPreview(URL.createObjectURL(next));
     setSubmitted(false);
+    setPrediction(null);
+    setAnalysisError("");
+    setOcrText("");
   }
+
+  async function analyzeScreenshot() {
+    if (!file || balance < price) return;
+    setAnalyzing(true);
+    setAnalysisError("");
+    setPrediction(null);
+    setOcrText("");
+    let worker;
+    try {
+      worker = await createWorker("eng");
+      const result = await worker.recognize(file);
+      const text = result?.data?.text || "";
+      if (!text.trim()) throw new Error("No readable text was found. Please upload a clearer betting screenshot.");
+      setOcrText(text);
+      const response = await fetch("/api/sure-prediction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || "Prediction service is unavailable.");
+      if (!data?.prediction?.predicted_winner || data.prediction.predicted_winner === "Unable to determine") {
+        throw new Error("The screenshot was readable, but the teams or 1X2 odds could not be determined. Please upload a clearer match screenshot.");
+      }
+      setPrediction(data.prediction);
+    } catch (err) {
+      setAnalysisError(err.message || "Could not analyze this screenshot.");
+    } finally {
+      if (worker) await worker.terminate();
+      setAnalyzing(false);
+    }
+  }
+
+  const resultStyle = { marginTop: 18, padding: 18, borderRadius: 20, background: "linear-gradient(135deg,#f0fff7,#eef6ff)", border: "1px solid #d8e8df" };
+  const statStyle = { padding: 13, borderRadius: 14, background: "#fff", border: "1px solid #e5e7eb" };
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="prediction-modal">
         <button className="modal-close" type="button" onClick={onClose}>×</button>
-        <div className="ai-icon large">🤖</div>
+        <div className="ai-icon large">🎯</div>
         <span className="eyebrow">{game.title} · SURE PREDICTION</span>
         <h2>Submit your match screenshot</h2>
         <p>Package: <strong>GHS {price}</strong> · <strong>{pkg?.predictions} prediction{pkg?.predictions > 1 ? "s" : ""}</strong></p>
-        <div className="prediction-wallet-check"><div><span>WALLET</span><strong>{money(balance)}</strong></div><div><span>PACKAGE</span><strong>GHS {price}</strong></div><div><span>PREDICTIONS</span><strong>{pkg?.predictions}</strong></div></div>
+        <div className="prediction-wallet-check">
+          <div><span>WALLET</span><strong>{money(balance)}</strong></div>
+          <div><span>PACKAGE</span><strong>GHS {price}</strong></div>
+          <div><span>PREDICTIONS</span><strong>{pkg?.predictions}</strong></div>
+        </div>
         {balance < price && <div className="alert error">Insufficient wallet balance. You need GHS {price} before you can submit.</div>}
         <label className="upload-box">
-          <input type="file" accept="image/*" onChange={handleFile} />
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} />
           {preview ? <img src={preview} alt="Selected match screenshot" /> : <><strong>Choose screenshot</strong><span>PNG, JPG or WEBP</span></>}
         </label>
-        <button className="btn btn-primary big-btn" type="button" disabled={!file || balance < price} onClick={() => setSubmitted(true)}>
-          {submitted ? "Screenshot received" : "Submit Sure Prediction"}
-        </button>
-        {submitted && <div className="prediction-status">Request submitted for manual processing. The administrator will handle the package deduction and prediction credit.</div>}
+        {!prediction && <button className="btn btn-primary big-btn" type="button" disabled={!file || balance < price || analyzing} onClick={analyzeScreenshot}>{analyzing ? "Reading screenshot..." : "Analyze Screenshot"}</button>}
+        {analysisError && <div className="alert error">{analysisError}</div>}
+        {prediction && (
+          <div style={resultStyle}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",marginBottom:14}}>
+              <span className="eyebrow">SURE PREDICTION RESULT</span>
+              <strong style={{padding:"7px 11px",borderRadius:999,background:"#fff"}}>{prediction.confidence || "Medium"}</strong>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,fontWeight:800,fontSize:17,marginBottom:15}}>
+              <span>{prediction.home_team}</span><span style={{opacity:.55}}>VS</span><span>{prediction.away_team}</span>
+            </div>
+            <div style={{padding:16,borderRadius:16,background:"#fff",marginBottom:12}}><span>🏆 WINNER</span><br/><strong style={{fontSize:24}}>{prediction.predicted_winner}</strong></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
+              <div style={statStyle}><span>⚽ GOAL PREDICTION</span><br/><strong>{prediction.goal_prediction || "Unavailable"}</strong></div>
+              <div style={statStyle}><span>📊 OVER/UNDER</span><br/><strong>{prediction.over_under || "Unavailable"}</strong></div>
+              <div style={statStyle}><span>🤝 BOTH TEAMS TO SCORE</span><br/><strong>{prediction.btts || "Unavailable"}</strong></div>
+              <div style={statStyle}><span>🎯 POSSIBLE SCORE</span><br/><strong>{prediction.possible_score || "Unavailable"}</strong></div>
+            </div>
+            {prediction.odds && <div style={{marginTop:12,fontSize:13,fontWeight:700}}>Displayed odds: {prediction.odds}</div>}
+            <div style={{marginTop:12,lineHeight:1.5}}>{prediction.reason}</div>
+            <div style={{marginTop:12,fontSize:12,opacity:.72}}>These are automated market-based predictions, not guaranteed match results. Goal and BTTS fields are estimates when those markets are not visible.</div>
+            {!submitted && <button className="btn btn-primary big-btn" type="button" style={{marginTop:16}} onClick={() => { setSubmitted(true); onSubmit(); }}>Submit Prediction Request</button>}
+          </div>
+        )}
+        {submitted && <div className="prediction-status">Prediction request submitted for manual processing. The administrator will handle the package deduction and prediction credit.</div>}
+        {ocrText && <details className="ocr-details"><summary>Show detected screenshot text</summary><pre>{ocrText}</pre></details>}
       </div>
     </div>
   );
