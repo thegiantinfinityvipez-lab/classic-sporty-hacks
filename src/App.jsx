@@ -385,7 +385,7 @@ function App() {
   function confirmSurePrediction() {
     logPredictionActivity("prediction_submitted", predictionGame, selectedPackage);
     setPredictionGame(null);
-    flash("Sure Prediction request submitted for manual processing.");
+    flash("Sure Prediction completed. Your package was charged and the prediction result was revealed.");
   }
 
   function addToSlip(match, odd) {
@@ -740,6 +740,12 @@ function App() {
             onClick={() => openGame(GAME_CATALOG[2])}
           />
           <NavButton
+            active={page === "game" && selectedGame?.key === "bottle"}
+            icon="🍾"
+            label="Flip the Bottle"
+            onClick={() => openGame(GAME_CATALOG[1])}
+          />
+          <NavButton
             active={page === "bets"}
             icon="🎟️"
             label="My Bets"
@@ -809,7 +815,7 @@ function App() {
                   <div className="feature-icon">🎰</div><div><strong>Casino</strong><span>Packages & Sure Prediction</span></div><b className="feature-arrow">›</b>
                 </button>
                 <button className="feature-card feature-green" type="button" onClick={() => openGame(GAME_CATALOG[1])}>
-                  <div className="feature-icon">🍾</div><div><strong>Flip the Bottle</strong><span>Packages & Sure Prediction</span></div><b className="feature-arrow">›</b>
+                  <div className="feature-icon">🍾</div><div><strong>Flip the Bottle</strong><span>Choose your stake and play</span></div><b className="feature-arrow">›</b>
                 </button>
                 <button className="feature-card feature-purple" type="button" onClick={() => setPage("wallet")}>
                   <div className="feature-icon">💰</div><div><strong>Wallet</strong><span>Deposit & manage your balance</span></div><b className="feature-arrow">›</b>
@@ -844,6 +850,11 @@ function App() {
               onBack={() => setPage("home")}
               onPackage={choosePackage}
               onPrediction={() => openSurePrediction(selectedGame)}
+              onRefresh={loadAll}
+              onDeposit={(amount) => {
+                setDepositAmount(String(amount));
+                setPage("wallet");
+              }}
             />
           )}
 
@@ -1142,7 +1153,16 @@ function App() {
 
           {page === "admin" && isAdmin && <AdminPanel onRefresh={loadAll} />}
           {predictionGame && (
-            <PredictionModal game={predictionGame} pkg={selectedPackage} wallet={wallet} onClose={() => setPredictionGame(null)} onSubmit={confirmSurePrediction} />
+            <PredictionModal
+              game={predictionGame}
+              pkg={selectedPackage}
+              wallet={wallet}
+              onClose={() => setPredictionGame(null)}
+              onSubmit={confirmSurePrediction}
+              onCharged={async () => {
+                await Promise.all([loadWallet(), loadUserData()]);
+              }}
+            />
           )}
         </main>
       </div>
@@ -1225,7 +1245,7 @@ function GameChoiceCard({ game, onOpen }) {
   );
 }
 
-function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction }) {
+function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefresh, onDeposit }) {
   const footballMatches = [
     ["Real Madrid", "Barcelona"],
     ["Manchester City", "Liverpool"],
@@ -1233,6 +1253,72 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction }) {
     ["Arsenal", "Chelsea"],
     ["Inter Milan", "AC Milan"],
   ];
+
+  const bottleStakes = [
+    { amount: 300, win: 600 },
+    { amount: 400, win: 800 },
+    { amount: 500, win: 1000 },
+  ];
+
+  const [selectedStake, setSelectedStake] = useState(null);
+  const [bottlePlaying, setBottlePlaying] = useState(false);
+  const [bottleResult, setBottleResult] = useState(null);
+  const [bottleError, setBottleError] = useState("");
+
+  async function playBottle() {
+    if (!selectedStake || bottlePlaying) return;
+    setBottleError("");
+    setBottleResult(null);
+
+    const amount = Number(selectedStake.amount);
+    const balance = Number(wallet?.balance || 0);
+
+    if (balance < amount) {
+      onDeposit(amount);
+      return;
+    }
+
+    setBottlePlaying(true);
+
+    try {
+      // The wallet is charged only when the round completes on the secure RPC.
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+
+      const { data, error: rpcError } = await supabase.rpc("play_flip_bottle", {
+        p_stake: amount,
+      });
+
+      if (rpcError) throw rpcError;
+
+      const resultData = data || {};
+      const outcome = String(
+        resultData.result || resultData.outcome || ""
+      ).toUpperCase();
+      const payout = Number(
+        resultData.payout ?? resultData.win_amount ?? 0
+      );
+      const returnedBalance = Number(
+        resultData.new_balance ?? resultData.balance ?? NaN
+      );
+
+      if (outcome !== "WIN" && outcome !== "LOSE" && outcome !== "LOSS") {
+        throw new Error("The bottle round returned an invalid result.");
+      }
+
+      setBottleResult({
+        outcome: outcome === "LOSS" ? "LOSE" : outcome,
+        stake: amount,
+        payout,
+        balance: returnedBalance,
+      });
+
+      await onRefresh();
+    } catch (e) {
+      setBottleError(e?.message || "The bottle round could not be completed.");
+    } finally {
+      setBottlePlaying(false);
+    }
+  }
 
   return (
     <section className="page-section game-detail-page">
@@ -1243,60 +1329,138 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction }) {
         <div>
           <span className="eyebrow">{game.subtitle}</span>
           <h1>{game.title}</h1>
-          <p>Select a package below to continue to the Deposit page. Current wallet: <strong>{money(wallet?.balance)}</strong></p>
+          <p>Current wallet: <strong>{money(wallet?.balance)}</strong></p>
         </div>
       </div>
 
-      {game.key === "football" && (
-        <div className="football-fixtures">
-          <div className="section-heading compact">
-            <div><span className="eyebrow">VIRTUAL FOOTBALL</span><h2>Today's Featured Teams</h2></div>
+      {game.key === "bottle" ? (
+        <>
+          <div className="package-heading">
+            <div>
+              <span className="eyebrow">FLIP THE BOTTLE</span>
+              <h2>CHOOSE YOUR STAKES</h2>
+              <p>Choose your stake. If you win, the round pays 2× your stake.</p>
+            </div>
           </div>
-          {footballMatches.map(([home, away]) => (
-            <div className="football-fixture" key={`${home}-${away}`}>
-              <div><span>HOME</span><strong>{home}</strong></div>
-              <b>VS</b>
-              <div className="away"><span>AWAY</span><strong>{away}</strong></div>
+
+          <div className="package-grid">
+            {bottleStakes.map((item) => {
+              const active = selectedStake?.amount === item.amount;
+              return (
+                <button
+                  key={item.amount}
+                  type="button"
+                  className={`package-card ${active ? "selected-stake-card" : ""}`}
+                  onClick={() => {
+                    setSelectedStake(item);
+                    setBottleResult(null);
+                    setBottleError("");
+                  }}
+                >
+                  <div className="package-top">
+                    <div>
+                      <strong>GHS {item.amount}</strong>
+                      <span>{active ? "SELECTED" : "STAKE"}</span>
+                    </div>
+                    <i>🍾</i>
+                  </div>
+                  <h3>Potential win: GHS {item.win}</h3>
+                  <div className="package-tags">
+                    <span>2× PAYOUT</span>
+                    <span>INSTANT RESULT</span>
+                  </div>
+                  <div className="package-action">{active ? "✓ SELECTED" : "SELECT STAKE"}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {bottleError && <div className="alert error">{bottleError}</div>}
+
+          <div className="bottle-play-card" style={{marginTop:20,padding:24,borderRadius:24,background:"linear-gradient(135deg,#fff8ef,#fff)",border:"1px solid #f3dfc7",textAlign:"center"}}>
+            <div style={{fontSize:64,marginBottom:10,display:"inline-block",animation:bottlePlaying?"bottleSpin 0.65s linear infinite":"none"}}>🍾</div>
+            <h3 style={{margin:"8px 0 6px",fontSize:24}}>
+              {bottlePlaying ? "FLIPPING..." : bottleResult ? (bottleResult.outcome === "WIN" ? "YOU WON! 🎉" : "YOU LOST") : "Ready for the round?"}
+            </h3>
+            <p style={{margin:"0 auto 18px",maxWidth:520,color:"#667085"}}>
+              {bottlePlaying
+                ? "Your round is being completed securely."
+                : bottleResult
+                ? bottleResult.outcome === "WIN"
+                  ? `GHS ${bottleResult.stake} was staked and GHS ${bottleResult.payout} was paid back.`
+                  : `GHS ${bottleResult.stake} was staked. No payout was made this round.`
+                : selectedStake
+                ? `Selected stake: GHS ${selectedStake.amount}. Potential win: GHS ${selectedStake.win}.`
+                : "Select one of the three stakes above to play."}
+            </p>
+            {selectedStake && !bottleResult && (
+              <button className="btn btn-primary big-btn" type="button" disabled={bottlePlaying} onClick={playBottle}>
+                {bottlePlaying ? "Flipping Bottle..." : `Play GHS ${selectedStake.amount}`}
+              </button>
+            )}
+            {bottleResult && (
+              <button className="btn btn-primary big-btn" type="button" onClick={() => { setBottleResult(null); setSelectedStake(null); }}>
+                Play Another Round
+              </button>
+            )}
+          </div>
+
+          <style>{`@keyframes bottleSpin {0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.12)}100%{transform:rotate(360deg) scale(1)}}`}</style>
+        </>
+      ) : (
+        <>
+          {game.key === "football" && (
+            <div className="football-fixtures">
+              <div className="section-heading compact">
+                <div><span className="eyebrow">VIRTUAL FOOTBALL</span><h2>Today's Featured Teams</h2></div>
+              </div>
+              {footballMatches.map(([home, away]) => (
+                <div className="football-fixture" key={`${home}-${away}`}>
+                  <div><span>HOME</span><strong>{home}</strong></div>
+                  <b>VS</b>
+                  <div className="away"><span>AWAY</span><strong>{away}</strong></div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+
+          <div className="package-heading">
+            <div>
+              <span className="eyebrow">CHOOSE YOUR PACKAGE</span>
+              <h2>Choose a package · No expiry · Manual processing</h2>
+            </div>
+          </div>
+
+          <div className="package-grid">
+            {PACKAGES.map((pkg) => (
+              <button key={pkg.price} className="package-card" type="button" onClick={() => onPackage(pkg.price)}>
+                <div className="package-top">
+                  <div><strong>GHS {pkg.price}</strong><span>AVAILABLE</span></div>
+                  <i>{pkg.icon}</i>
+                </div>
+                <h3>{pkg.predictions} prediction{pkg.predictions > 1 ? "s" : ""} per screenshot</h3>
+                <div className="package-tags"><span>{pkg.predictions} PREDICTION{pkg.predictions > 1 ? "S" : ""}</span><span>NO EXPIRY</span></div>
+                <div className="package-action">→ GET GHS {pkg.price}</div>
+              </button>
+            ))}
+          </div>
+
+          <div className="ai-prediction-card">
+            <div className="ai-icon">🎯</div>
+            <div>
+              <span className="eyebrow">SURE PREDICTION</span>
+              <h3>Send a screenshot for match analysis</h3>
+              <p>Upload a clear screenshot of the particular match. Your selected package is charged only after successful analysis.</p>
+            </div>
+            <button className="btn btn-primary" type="button" onClick={onPrediction}>Sure Prediction</button>
+          </div>
+        </>
       )}
-
-      <div className="package-heading">
-        <div>
-          <span className="eyebrow">CHOOSE YOUR PACKAGE</span>
-          <h2>Choose a package · No expiry · Manual processing</h2>
-        </div>
-      </div>
-
-      <div className="package-grid">
-        {PACKAGES.map((pkg) => (
-          <button key={pkg.price} className="package-card" type="button" onClick={() => onPackage(pkg.price)}>
-            <div className="package-top">
-              <div><strong>GHS {pkg.price}</strong><span>AVAILABLE</span></div>
-              <i>{pkg.icon}</i>
-            </div>
-            <h3>{pkg.predictions} prediction{pkg.predictions > 1 ? "s" : ""} per screenshot</h3>
-            <div className="package-tags"><span>{pkg.predictions} PREDICTION{pkg.predictions > 1 ? "S" : ""}</span><span>NO EXPIRY</span></div>
-            <div className="package-action">→ GET GHS {pkg.price}</div>
-          </button>
-        ))}
-      </div>
-
-      <div className="ai-prediction-card">
-        <div className="ai-icon">🤖</div>
-        <div>
-          <span className="eyebrow">SURE PREDICTION</span>
-          <h3>Send a screenshot for match analysis</h3>
-          <p>Upload a clear screenshot of the particular match. The AI feature should return analysis only when a secure server-side AI service is connected.</p>
-        </div>
-        <button className="btn btn-primary" type="button" onClick={onPrediction}>Sure Prediction</button>
-      </div>
     </section>
   );
 }
 
-function PredictionModal({ game, pkg, wallet, onClose, onSubmit }) {
+function PredictionModal({ game, pkg, wallet, onClose, onSubmit, onCharged }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -1341,6 +1505,17 @@ function PredictionModal({ game, pkg, wallet, onClose, onSubmit }) {
       if (!data?.prediction?.predicted_winner || data.prediction.predicted_winner === "Unable to determine") {
         throw new Error("The screenshot was readable, but the teams or 1X2 odds could not be determined. Please upload a clearer match screenshot.");
       }
+
+      // Charge immediately after successful analysis and before revealing the result.
+      const { error: chargeError } = await supabase.rpc("consume_prediction_package", {
+        p_amount: price,
+        p_game: game?.title || game?.key || "Game",
+        p_prediction_count: Number(pkg?.predictions || 1),
+      });
+
+      if (chargeError) throw chargeError;
+
+      if (onCharged) await onCharged();
       setPrediction(data.prediction);
     } catch (err) {
       setAnalysisError(err.message || "Could not analyze this screenshot.");
@@ -1395,7 +1570,7 @@ function PredictionModal({ game, pkg, wallet, onClose, onSubmit }) {
             {!submitted && <button className="btn btn-primary big-btn" type="button" style={{marginTop:16}} onClick={() => { setSubmitted(true); onSubmit(); }}>Submit Prediction Request</button>}
           </div>
         )}
-        {submitted && <div className="prediction-status">Prediction request submitted for manual processing. The administrator will handle the package deduction and prediction credit.</div>}
+        {submitted && <div className="prediction-status">Prediction result revealed and package charged successfully. The activity has been recorded.</div>}
         {ocrText && <details className="ocr-details"><summary>Show detected screenshot text</summary><pre>{ocrText}</pre></details>}
       </div>
     </div>
