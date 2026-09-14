@@ -1,296 +1,481 @@
 css
+/* =========================================================
+   CLASSIC SPORTY HACKS
+   COMPACT RESPONSIVE MOBILE DESIGN
+   Does NOT change App.jsx functionality
+========================================================= */
+
 * {
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
-  margin: 0;
-  min-height: 100%;
+html {
   width: 100%;
+  min-height: 100%;
 }
 
 body {
+  margin: 0;
+  width: 100%;
+  min-height: 100vh;
   overflow-x: hidden;
   background: #f4f7f5;
+  font-family: Inter, Arial, sans-serif;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
 }
 
 button,
 input,
 select {
-  font: inherit;
+  font-family: inherit;
 }
 
 button {
   -webkit-tap-highlight-color: transparent;
 }
 
-@media (max-width: 700px) {
-  body {
-    font-size: 13px;
-  }
+/* =========================================================
+   DESKTOP
+========================================================= */
 
-  /* Main page */
-  .page {
+@media (min-width: 701px) {
+  .mobile-game-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 700px) {
+
+  html,
+  body,
+  #root {
     width: 100%;
+    max-width: 100%;
     overflow-x: hidden;
   }
 
-  /* Header */
+  body {
+    font-size: 12px;
+  }
+
+  /* ---------- HEADER ---------- */
+
   header {
-    padding: 10px 12px !important;
+    min-height: 52px !important;
+    padding: 8px 11px !important;
   }
 
   header .brand {
-    font-size: 15px !important;
+    font-size: 14px !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0 !important;
   }
 
   header .headerSmall {
-    font-size: 10px !important;
+    font-size: 9px !important;
+    margin-top: 2px !important;
   }
 
   header button {
-    padding: 7px 10px !important;
-    font-size: 11px !important;
+    padding: 6px 9px !important;
+    font-size: 10px !important;
+    border-radius: 6px !important;
   }
 
-  /* Navigation */
+  /* ---------- NAVIGATION ---------- */
+
   nav {
-    padding: 5px 8px !important;
+    width: 100% !important;
+    padding: 5px 7px !important;
     gap: 3px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+
+  nav::-webkit-scrollbar {
+    display: none;
   }
 
   nav button {
+    flex: 0 0 auto;
     padding: 7px 9px !important;
-    font-size: 11px !important;
+    min-height: 29px !important;
+    font-size: 10px !important;
+    border-radius: 6px !important;
   }
 
-  /* Main container */
+  /* ---------- MAIN CONTAINER ---------- */
+
   main {
     width: 94% !important;
-    margin: 12px auto 30px !important;
+    max-width: 94% !important;
+    margin: 10px auto 25px !important;
   }
 
-  /* Hero sections */
+  /* ---------- HERO ---------- */
+
   .hero {
-    padding: 13px !important;
-    border-radius: 11px !important;
-    margin-bottom: 10px !important;
+    min-height: 0 !important;
+    padding: 12px !important;
+    margin-bottom: 9px !important;
+    border-radius: 10px !important;
+    gap: 8px !important;
   }
 
   .hero h1 {
-    font-size: 18px !important;
-    margin: 0 0 4px !important;
+    font-size: 17px !important;
+    line-height: 1.15 !important;
+    margin: 0 0 3px !important;
   }
 
   .hero p {
-    font-size: 11px !important;
+    font-size: 10px !important;
+    line-height: 1.3 !important;
     margin: 0 !important;
   }
 
   .balanceMini {
-    min-width: 105px !important;
-    padding: 8px 10px !important;
-    font-size: 10px !important;
+    min-width: 92px !important;
+    padding: 7px 8px !important;
+    border-radius: 7px !important;
+    font-size: 8px !important;
   }
 
   .balanceMini strong {
-    font-size: 13px !important;
-  }
-
-  /* Match/game layout */
-  .layout {
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 10px !important;
-  }
-
-  .matchCard {
-    padding: 11px !important;
-    margin-bottom: 9px !important;
-    border-radius: 10px !important;
-  }
-
-  .matchTop {
-    font-size: 9px !important;
-  }
-
-  .teams {
-    padding: 10px 2px !important;
-    gap: 7px !important;
     font-size: 12px !important;
   }
 
+  /* ---------- MATCH / CONTENT LAYOUT ---------- */
+
+  .layout {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* ---------- MATCH CARDS ---------- */
+
+  .matchCard {
+    width: 100% !important;
+    padding: 10px !important;
+    margin-bottom: 8px !important;
+    border-radius: 9px !important;
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .matchTop {
+    font-size: 8px !important;
+    line-height: 1.2 !important;
+  }
+
+  .teams {
+    padding: 9px 2px !important;
+    gap: 6px !important;
+    font-size: 11px !important;
+    line-height: 1.2 !important;
+  }
+
   .market {
-    margin-top: 7px !important;
+    margin-top: 6px !important;
   }
 
   .marketTitle {
-    font-size: 10px !important;
-    margin-bottom: 5px !important;
+    font-size: 9px !important;
+    margin-bottom: 4px !important;
   }
 
   .oddsGrid {
+    display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 4px !important;
   }
 
   .oddBtn {
+    width: 100% !important;
     min-width: 0 !important;
-    padding: 6px 5px !important;
-    font-size: 10px !important;
-    border-radius: 6px !important;
+    padding: 6px 4px !important;
+    border-radius: 5px !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+    gap: 3px !important;
+  }
+
+  .oddBtn span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .oddBtn b {
-    font-size: 10px !important;
+    font-size: 9px !important;
   }
 
-  /* Bet slip */
+  /* ---------- BET SLIP ---------- */
+
   .slip {
     position: static !important;
-    padding: 11px !important;
-    border-radius: 10px !important;
+    width: 100% !important;
+    margin-top: 9px !important;
+    padding: 10px !important;
+    border-radius: 9px !important;
   }
 
   .slipTitle {
-    padding-bottom: 8px !important;
-    margin-bottom: 7px !important;
-    font-size: 12px !important;
+    padding-bottom: 7px !important;
+    margin-bottom: 5px !important;
+    font-size: 11px !important;
   }
 
   .slipItem {
     padding: 7px 0 !important;
-    font-size: 10px !important;
+    font-size: 9px !important;
   }
 
   .slipItem strong {
-    font-size: 10px !important;
+    font-size: 9px !important;
   }
 
   .remove {
-    width: 23px !important;
-    height: 23px !important;
+    width: 22px !important;
+    height: 22px !important;
+    border-radius: 5px !important;
   }
 
   .summary {
-    padding: 6px 0 !important;
-    font-size: 11px !important;
+    padding: 5px 0 !important;
+    font-size: 10px !important;
   }
 
-  /* Inputs */
-  .input {
-    padding: 9px 10px !important;
-    font-size: 12px !important;
-    margin-bottom: 7px !important;
-  }
+  /* ---------- BUTTONS ---------- */
 
   .primary,
   .secondary {
     padding: 9px 10px !important;
-    font-size: 11px !important;
-    border-radius: 7px !important;
+    min-height: 34px !important;
+    border-radius: 6px !important;
+    font-size: 10px !important;
   }
 
-  /* General cards */
+  /* ---------- INPUTS ---------- */
+
+  .input {
+    width: 100% !important;
+    padding: 8px 9px !important;
+    margin-bottom: 7px !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+    min-height: 34px !important;
+  }
+
+  /* ---------- GENERAL CARDS ---------- */
+
   .card {
-    padding: 12px !important;
+    width: 100% !important;
+    padding: 11px !important;
+    margin-bottom: 8px !important;
+    border-radius: 9px !important;
+  }
+
+  .card h2 {
+    font-size: 16px !important;
+    margin-top: 0 !important;
+  }
+
+  .card h3 {
+    font-size: 13px !important;
+    margin-top: 0 !important;
+  }
+
+  /* ---------- WALLET ---------- */
+
+  .walletHero {
+    padding: 15px !important;
     margin-bottom: 9px !important;
     border-radius: 10px !important;
   }
 
-  .card h2,
-  .card h3 {
-    font-size: 14px !important;
-  }
-
-  /* Wallet */
-  .walletHero {
-    padding: 15px !important;
-    border-radius: 11px !important;
-    margin-bottom: 10px !important;
-  }
-
   .walletHero strong {
     font-size: 23px !important;
+    line-height: 1.1 !important;
+  }
+
+  .walletHero span {
+    font-size: 9px !important;
   }
 
   .walletHero small {
-    font-size: 10px !important;
+    font-size: 8px !important;
   }
 
   .twoCol {
-    grid-template-columns: 1fr !important;
-    gap: 9px !important;
+    display: block !important;
   }
 
-  /* Rows */
+  .twoCol > * {
+    margin-bottom: 9px !important;
+  }
+
+  /* ---------- ROWS ---------- */
+
   .row {
-    padding: 7px 0 !important;
-    font-size: 11px !important;
+    padding: 6px 0 !important;
+    font-size: 10px !important;
   }
 
   .small {
-    font-size: 9px !important;
+    font-size: 8px !important;
+    line-height: 1.25 !important;
+  }
+
+  .muted {
+    font-size: 10px !important;
+    line-height: 1.35 !important;
   }
 
   .badge {
-    font-size: 9px !important;
+    font-size: 8px !important;
     padding: 3px 6px !important;
   }
 
-  /* Buttons */
   .buttonRow {
     gap: 5px !important;
   }
 
-  /* Login */
+  /* ---------- AUTH ---------- */
+
   .authWrap {
+    width: 100% !important;
+    min-height: calc(100vh - 52px) !important;
     padding: 12px !important;
   }
 
   .authCard {
+    width: 100% !important;
+    max-width: 360px !important;
     padding: 18px !important;
     border-radius: 12px !important;
   }
 
   .authCard h1 {
-    font-size: 20px !important;
+    font-size: 19px !important;
   }
 
   .logoCircle {
-    width: 45px !important;
-    height: 45px !important;
+    width: 44px !important;
+    height: 44px !important;
     margin-bottom: 9px !important;
+  }
+
+  .linkButton {
+    padding: 8px !important;
+    font-size: 10px !important;
+  }
+
+  /* =====================================================
+     VIRTUAL GAMES
+     These classes work if your Virtual Games cards use
+     these class names.
+  ===================================================== */
+
+  .mobile-game-grid,
+  .game-grid,
+  .virtual-game-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    width: 100% !important;
+  }
+
+  .game-card,
+  .virtual-game-card {
+    min-width: 0 !important;
+    padding: 9px !important;
+    border-radius: 9px !important;
+  }
+
+  .game-card h3,
+  .virtual-game-card h3 {
+    font-size: 11px !important;
+    margin: 4px 0 !important;
+  }
+
+  .game-card p,
+  .virtual-game-card p {
+    font-size: 8px !important;
+    margin: 3px 0 !important;
+  }
+
+  .game-card button,
+  .virtual-game-card button {
+    width: 100% !important;
+    padding: 7px 5px !important;
+    font-size: 9px !important;
+    border-radius: 6px !important;
+  }
+
+  /* ---------- LOADING ---------- */
+
+  .loading {
+    min-height: 100vh;
+    font-size: 12px;
   }
 }
 
-/* Extra-small phones */
-@media (max-width: 390px) {
+/* =========================================================
+   VERY SMALL PHONES
+========================================================= */
+
+@media (max-width: 380px) {
+
   main {
     width: 95% !important;
+    max-width: 95% !important;
   }
 
-  .brand {
-    font-size: 14px !important;
+  header {
+    padding: 7px 9px !important;
   }
 
-  .teams {
-    font-size: 11px !important;
-  }
-
-  .oddBtn {
-    padding: 5px 3px !important;
-    font-size: 9px !important;
-  }
-
-  .oddBtn b {
-    font-size: 9px !important;
+  header .brand {
+    font-size: 13px !important;
   }
 
   nav button {
     padding: 6px 7px !important;
+    font-size: 9px !important;
+  }
+
+  .hero h1 {
+    font-size: 15px !important;
+  }
+
+  .hero p {
+    font-size: 9px !important;
+  }
+
+  .teams {
     font-size: 10px !important;
   }
-}
 
+  .oddBtn {
+    padding: 5px 3px !important;
+    font-size: 8px !important;
+  }
+
+  .oddBtn b {
+    font-size: 8px !important;
+  }
+
+  .mobile-game-grid,
+  .game-grid,
+  .virtual-game-grid {
+    gap: 5px !important;
+  }
+}
