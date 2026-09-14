@@ -667,6 +667,12 @@ function App() {
             onClick={() => setPage("home")}
           />
           <NavButton
+            active={page === "virtual"}
+            icon="🎮"
+            label="Virtual Games"
+            onClick={() => setPage("virtual")}
+          />
+          <NavButton
             active={page === "bets"}
             icon="🎟️"
             label="My Bets"
@@ -760,6 +766,12 @@ function App() {
                   title="Top Events"
                   text="Popular football selections"
                   color="orange"
+                />
+                <FeatureCard
+                  icon="🎮"
+                  title="Virtual Games"
+                  text="Fast virtual sports"
+                  color="pink"
                 />
                 <FeatureCard
                   icon="💰"
@@ -866,6 +878,132 @@ function App() {
                 </div>
               </section>
             </>
+          )}
+
+          {page === "virtual" && (
+            <section className="page-section virtual-page">
+              <PageTitle
+                eyebrow="VIRTUAL SPORTS"
+                title="Virtual Games"
+                text="Fast-paced virtual sports with scheduled game rounds."
+              />
+
+              <div className="virtual-notice">
+                <div className="virtual-notice-icon">⚡</div>
+                <div>
+                  <strong>Virtual Sports Hub</strong>
+                  <p>
+                    Choose a virtual sport below. These are the game categories
+                    for the platform; real-money virtual wagering should be
+                    connected to an approved virtual-sports provider before it
+                    is enabled for customers.
+                  </p>
+                </div>
+              </div>
+
+              <div className="virtual-grid">
+                <VirtualGameCard
+                  icon="⚽"
+                  title="Virtual Football"
+                  subtitle="3-minute matches"
+                  description="Quick virtual football rounds with match markets."
+                  badge="POPULAR"
+                />
+                <VirtualGameCard
+                  icon="🏇"
+                  title="Virtual Horse Racing"
+                  subtitle="Next race soon"
+                  description="Fast virtual racing rounds and race markets."
+                  badge="FAST"
+                />
+                <VirtualGameCard
+                  icon="🏀"
+                  title="Virtual Basketball"
+                  subtitle="Rapid rounds"
+                  description="Short virtual basketball games with multiple outcomes."
+                  badge="NEW"
+                />
+                <VirtualGameCard
+                  icon="🎾"
+                  title="Virtual Tennis"
+                  subtitle="Quick matches"
+                  description="Virtual tennis rounds designed for fast gameplay."
+                  badge="LIVE SOON"
+                />
+                <VirtualGameCard
+                  icon="🐕"
+                  title="Virtual Greyhound Racing"
+                  subtitle="Fast races"
+                  description="Rapid virtual greyhound races with scheduled rounds."
+                  badge="FAST"
+                />
+                <VirtualGameCard
+                  icon="🏎️"
+                  title="Virtual Formula Racing"
+                  subtitle="Race every few minutes"
+                  description="High-speed virtual racing with multiple finishing outcomes."
+                  badge="NEW"
+                />
+                <VirtualGameCard
+                  icon="🏐"
+                  title="Virtual Volleyball"
+                  subtitle="Quick rounds"
+                  description="Fast virtual volleyball matches with scheduled results."
+                  badge="COMING SOON"
+                />
+                <VirtualGameCard
+                  icon="⚾"
+                  title="Virtual Baseball"
+                  subtitle="Short games"
+                  description="Virtual baseball games with quick simulated matchups."
+                  badge="COMING SOON"
+                />
+                <VirtualGameCard
+                  icon="🏒"
+                  title="Virtual Ice Hockey"
+                  subtitle="Rapid matches"
+                  description="Quick virtual ice hockey matchups and result markets."
+                  badge="COMING SOON"
+                />
+                <VirtualGameCard
+                  icon="🤾"
+                  title="Virtual Handball"
+                  subtitle="Fast matches"
+                  description="Short virtual handball rounds with multiple outcomes."
+                  badge="COMING SOON"
+                />
+                <VirtualGameCard
+                  icon="🎡"
+                  title="Spin"
+                  subtitle="Quick spin rounds"
+                  description="A virtual spin game interface for fast rounds and outcomes."
+                  badge="COMING SOON"
+                />
+                <VirtualGameCard
+                  icon="🎲"
+                  title="Dice"
+                  subtitle="Rapid dice rounds"
+                  description="Virtual dice rounds with multiple possible outcomes."
+                  badge="COMING SOON"
+                />
+                <VirtualGameCard
+                  icon="🃏"
+                  title="Cards"
+                  subtitle="Virtual card games"
+                  description="Virtual card rounds with selectable game outcomes."
+                  badge="COMING SOON"
+                />
+              </div>
+
+              <div className="virtual-round-card">
+                <div>
+                  <span className="eyebrow">NEXT VIRTUAL ROUND</span>
+                  <h3>Virtual Football • Matchday 001</h3>
+                  <p>Provider connection required before this round can accept real-money bets.</p>
+                </div>
+                <span className="virtual-coming">COMING SOON</span>
+              </div>
+            </section>
           )}
 
           {page === "bets" && (
@@ -1220,6 +1358,25 @@ function Stat({ label, value }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function VirtualGameCard({ icon, title, subtitle, description, badge }) {
+  return (
+    <article className="virtual-game-card">
+      <div className="virtual-card-top">
+        <div className="virtual-game-icon">{icon}</div>
+        <span className="virtual-badge">{badge}</span>
+      </div>
+      <div className="virtual-game-body">
+        <span className="eyebrow">{subtitle}</span>
+        <h3>{title}</h3>
+        <p>{description}</p>
+        <button className="btn btn-primary" disabled>
+          Open Game
+        </button>
+      </div>
+    </article>
   );
 }
 
