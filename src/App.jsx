@@ -662,3 +662,4 @@ function AdminPanel({ onRefresh }) {
     </section>
   );
 }
+export default App;
