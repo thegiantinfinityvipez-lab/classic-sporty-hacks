@@ -716,12 +716,6 @@ function App() {
             onClick={() => openGame(GAME_CATALOG[2])}
           />
           <NavButton
-            active={page === "virtual"}
-            icon="🎮"
-            label="Virtual Games"
-            onClick={() => setPage("virtual")}
-          />
-          <NavButton
             active={page === "bets"}
             icon="🎟️"
             label="My Bets"
@@ -753,9 +747,9 @@ function App() {
           )}
 
           <div className="sidebar-card">
-            <div className="mini-icon">🏆</div>
-            <strong>Classic Sporty</strong>
-            <p>Choose your games, check the odds and build your slip.</p>
+            <div className="mini-icon">🎯</div>
+            <strong>Sure Prediction</strong>
+            <p>Choose a package, submit a clear match screenshot and wait for manual processing.</p>
           </div>
         </aside>
 
@@ -764,14 +758,45 @@ function App() {
           {error && <div className="alert error">{error}</div>}
 
           {page === "home" && (
-            <section className="page-section home-games-page">
-              <PageTitle
-                eyebrow="CLASSIC SPORTY HACKS"
-                title="Choose Your Game"
-                text="Pick a game below. Choose a package and continue through the wallet deposit area."
-              />
+            <section className="page-section home-dashboard-page">
+              <div className="hero-banner">
+                <div className="hero-copy">
+                  <span className="hero-kicker">CLASSIC SPORTY HACKS</span>
+                  <h1>Pick your game.<br /><span>Build your prediction.</span></h1>
+                  <p>Choose Football, Casino or Flip the Bottle. Open a game, select your package and continue through your wallet deposit area.</p>
+                  <div className="hero-buttons">
+                    <button className="btn btn-white" type="button" onClick={() => openGame(GAME_CATALOG[2])}>Open Football</button>
+                    <button className="btn btn-yellow" type="button" onClick={() => setPage("wallet")}>+ Add Funds</button>
+                  </div>
+                </div>
+                <div className="hero-art">
+                  <div className="football">⚽</div>
+                  <div className="hero-chip chip-one">SURE PREDICTION</div>
+                  <div className="hero-chip chip-two">3 PACKAGES</div>
+                  <div className="hero-score"><span>WALLET</span><strong>{money(wallet?.balance)}</strong></div>
+                </div>
+              </div>
 
-              <div className="home-game-grid">
+              <div className="feature-grid">
+                <button className="feature-card feature-blue" type="button" onClick={() => openGame(GAME_CATALOG[2])}>
+                  <div className="feature-icon">⚽</div><div><strong>Football</strong><span>Named teams & Sure Prediction</span></div><b className="feature-arrow">›</b>
+                </button>
+                <button className="feature-card feature-orange" type="button" onClick={() => openGame(GAME_CATALOG[0])}>
+                  <div className="feature-icon">🎰</div><div><strong>Casino</strong><span>Packages & Sure Prediction</span></div><b className="feature-arrow">›</b>
+                </button>
+                <button className="feature-card feature-green" type="button" onClick={() => openGame(GAME_CATALOG[1])}>
+                  <div className="feature-icon">🍾</div><div><strong>Flip the Bottle</strong><span>Packages & Sure Prediction</span></div><b className="feature-arrow">›</b>
+                </button>
+                <button className="feature-card feature-purple" type="button" onClick={() => setPage("wallet")}>
+                  <div className="feature-icon">💰</div><div><strong>Wallet</strong><span>Deposit & manage your balance</span></div><b className="feature-arrow">›</b>
+                </button>
+              </div>
+
+              <div className="section-heading">
+                <div><span className="eyebrow">PLAY & PREDICT</span><h2>Choose your game</h2><p>Every game has GHS 300, GHS 400 and GHS 500 packages.</p></div>
+              </div>
+
+              <div className="home-game-grid home-game-grid-three">
                 {GAME_CATALOG.map((game) => (
                   <GameChoiceCard key={game.key} game={game} onOpen={openGame} />
                 ))}
@@ -781,33 +806,9 @@ function App() {
                 <div>
                   <span className="eyebrow">YOUR WALLET</span>
                   <h3>{money(wallet?.balance)}</h3>
-                  <p>Choose a package inside any game and the selected price will be carried to your Deposit page.</p>
+                  <p>Select a package and the amount will be carried into the Deposit area.</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setPage("wallet")}>Go to Deposit</button>
-              </div>
-            </section>
-          )}
-
-          {page === "virtual" && (
-            <section className="page-section virtual-page">
-              <PageTitle
-                eyebrow="GAMES"
-                title="Classic Sporty Games"
-                text="Choose one of the three available games below."
-              />
-
-              <div className="virtual-notice">
-                <div className="virtual-notice-icon">🎮</div>
-                <div>
-                  <strong>3 Games Available</strong>
-                  <p>Tap a game to open its own page. Packages are GHS 300, GHS 400 and GHS 500, and selecting a package takes the user to Deposit.</p>
-                </div>
-              </div>
-
-              <div className="home-game-grid">
-                {GAME_CATALOG.map((game) => (
-                  <GameChoiceCard key={game.key} game={game} onOpen={openGame} />
-                ))}
+                <button className="btn btn-primary" type="button" onClick={() => setPage("wallet")}>Go to Deposit</button>
               </div>
             </section>
           )}
@@ -816,7 +817,7 @@ function App() {
             <GameDetailPage
               game={selectedGame}
               wallet={wallet}
-              onBack={() => setPage("virtual")}
+              onBack={() => setPage("home")}
               onPackage={choosePackage}
               onPrediction={() => openSurePrediction(selectedGame)}
             />
