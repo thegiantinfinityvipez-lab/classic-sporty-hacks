@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
+import "./App.css";
+import "./App.css";
 
 const money = (n) =>
   `GHS ${Number(n || 0).toLocaleString("en-GH", {
@@ -407,422 +409,146 @@ function App() {
     return groups;
   };
 
+  const virtualGames = [
+    { icon: "⚽", title: "Virtual Football", tag: "FOOTBALL", text: "Fast virtual football fixtures with instant results." },
+    { icon: "🏇", title: "Virtual Horse Racing", tag: "RACING", text: "Pick your horse and follow the virtual race." },
+    { icon: "🏀", title: "Virtual Basketball", tag: "BASKETBALL", text: "Quick basketball matchups and virtual action." },
+    { icon: "🎾", title: "Virtual Tennis", tag: "TENNIS", text: "Serve, rally and choose your virtual winner." },
+    { icon: "🐕", title: "Virtual Greyhounds", tag: "RACING", text: "High-speed virtual greyhound races." },
+    { icon: "🏎️", title: "Virtual Racing", tag: "MOTOR", text: "Virtual motorsport with rapid race cycles." },
+    { icon: "🏆", title: "Virtual League", tag: "LEAGUE", text: "Compete through a full virtual league." },
+    { icon: "🥅", title: "Virtual Penalty", tag: "SKILL", text: "Choose your side in a virtual penalty battle." },
+    { icon: "🏁", title: "Virtual Speedway", tag: "SPEED", text: "Fast virtual speedway races." },
+    { icon: "🎮", title: "Retro Bowl", tag: "ARCADE", text: "Classic-style virtual football entertainment." },
+  ];
+
+  const navItems = [
+    ["home", "⌂", "Home"],
+    ["home", "⚽", "Matches"],
+    ["virtuals", "🎮", "Virtuals"],
+    ["bets", "🎟️", "My Bets"],
+    ["wallet", "💰", "Wallet"],
+    ["transactions", "↔", "Transactions"],
+    ...(isAdmin ? [["admin", "👑", "Admin"]] : []),
+  ];
+
   if (!session) {
     return (
-      <div style={styles.page}>
-        <header style={styles.header}>
-          <div style={styles.brand}>CLASSIC SPORTY HACKS</div>
-          <div style={styles.headerSmall}>Football Tips & Match Centre</div>
-        </header>
-
-        <main style={styles.authWrap}>
-          <div style={styles.authCard}>
-            <div style={styles.logoCircle}>CS</div>
-            <h1>{authMode === "login" ? "Welcome back" : "Create account"}</h1>
-            <p style={styles.muted}>
-              {authMode === "login"
-                ? "Log in to access your wallet and bets."
-                : "Create your account to start using the platform."}
-            </p>
-
-            {error && <div style={styles.error}>{error}</div>}
-            {message && <div style={styles.success}>{message}</div>}
-
-            <form onSubmit={handleAuth}>
-              {authMode === "signup" && (
-                <input
-                  style={styles.input}
-                  placeholder="Full name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              )}
-              <input
-                style={styles.input}
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <input
-                style={styles.input}
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <button style={styles.primary} disabled={busy}>
-                {busy
-                  ? "Please wait..."
-                  : authMode === "login"
-                  ? "Login"
-                  : "Sign Up"}
-              </button>
-            </form>
-
-            <button
-              style={styles.linkButton}
-              onClick={() => {
-                clearError();
-                setAuthMode(authMode === "login" ? "signup" : "login");
-              }}
-            >
-              {authMode === "login"
-                ? "Don't have an account? Sign up"
-                : "Already have an account? Login"}
-            </button>
+      <div className="csh-app auth-page">
+        <div className="auth-background-shape shape-one" />
+        <div className="auth-background-shape shape-two" />
+        <header className="topbar auth-topbar">
+          <div className="brand-wrap">
+            <div className="brand-mark">CS</div>
+            <div><div className="brand-name">CLASSIC SPORTY HACKS</div><div className="brand-sub">Football • Sports • Match Centre</div></div>
           </div>
+          <div className="secure-pill">🔒 Secure account access</div>
+        </header>
+        <main className="auth-shell">
+          <section className="auth-showcase">
+            <span className="eyebrow">YOUR FOOTBALL HOME</span>
+            <h1>Play smarter.<br /><span>Follow the action.</span></h1>
+            <p>Access matches, odds, your bet slip, wallet and virtual games from one clean dashboard.</p>
+            <div className="showcase-stats">
+              <div><b>⚽</b><strong>Live Matches</strong><small>Odds & markets</small></div>
+              <div><b>🎮</b><strong>10 Virtuals</strong><small>Quick-play zone</small></div>
+              <div><b>💰</b><strong>Wallet</strong><small>Track your funds</small></div>
+            </div>
+          </section>
+          <section className="auth-card">
+            <div className="auth-card-head"><div className="auth-logo">CS</div><span>Welcome to CSH</span></div>
+            <h2>{authMode === "login" ? "Welcome back" : "Create your account"}</h2>
+            <p>{authMode === "login" ? "Log in to continue to your dashboard." : "Sign up and start exploring Classic Sporty Hacks."}</p>
+            <div className="auth-tabs"><button className={authMode === "login" ? "active" : ""} onClick={() => { clearError(); setAuthMode("login"); }}>Login</button><button className={authMode === "signup" ? "active" : ""} onClick={() => { clearError(); setAuthMode("signup"); }}>Sign Up</button></div>
+            {error && <div className="alert error-alert">{error}</div>}
+            {message && <div className="alert success-alert">{message}</div>}
+            <form onSubmit={handleAuth} className="auth-form">
+              {authMode === "signup" && <label>Full name<input value={name} onChange={e => setName(e.target.value)} placeholder="Your full name" /></label>}
+              <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>
+              <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password" /></label>
+              <button className="main-btn auth-submit" disabled={busy}>{busy ? "Please wait..." : authMode === "login" ? "Login to dashboard →" : "Create account →"}</button>
+            </form>
+            <div className="auth-note">By continuing, you agree to use the platform responsibly.</div>
+          </section>
         </main>
       </div>
     );
   }
 
-  if (loading) {
-    return <div style={styles.loading}>Loading your account...</div>;
-  }
+  if (loading) return <div className="loading-screen"><div className="loading-orb">CS</div><h2>Loading Classic Sporty Hacks</h2><p>Preparing your dashboard...</p></div>;
 
   return (
-    <div style={styles.page}>
-      <header style={styles.header}>
-        <div>
-          <div style={styles.brand}>CLASSIC SPORTY HACKS</div>
-          <div style={styles.headerSmall}>
-            {profile?.full_name || session.user.email}
-          </div>
+    <div className="csh-app">
+      <header className="topbar">
+        <div className="brand-wrap" onClick={() => setPage("home")} role="button" tabIndex={0}>
+          <div className="brand-mark">CS</div>
+          <div><div className="brand-name">CLASSIC SPORTY HACKS</div><div className="brand-sub">Football Match Centre</div></div>
         </div>
-        <button style={styles.logout} onClick={logout}>
-          Logout
-        </button>
+        <div className="top-actions">
+          <button className="balance-chip" onClick={() => setPage("wallet")}><span>Wallet balance</span><b>{money(wallet?.balance)}</b></button>
+          <button className="deposit-top" onClick={() => setPage("wallet")}>＋ Deposit</button>
+          <button className="avatar-btn" title={profile?.full_name || session.user.email}>{(profile?.full_name || session.user.email || "U").charAt(0).toUpperCase()}</button>
+          <button className="logout-btn" onClick={logout}>Logout</button>
+        </div>
       </header>
 
-      <nav style={styles.nav}>
-        {[
-          ["home", "Matches"],
-          ["virtuals", "Virtual Games"],
-          ["bets", "My Bets"],
-          ["wallet", "Wallet"],
-          ["transactions", "Transactions"],
-          ...(isAdmin ? [["admin", "Admin"]] : []),
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setPage(key)}
-            style={page === key ? styles.navActive : styles.navBtn}
-          >
-            {label}
-          </button>
-        ))}
+      <nav className="main-nav">
+        <div className="nav-inner">
+          {navItems.map(([key, icon, label], i) => <button key={`${key}-${i}`} className={`nav-item ${page === key ? "active" : ""}`} onClick={() => setPage(key)}><span>{icon}</span>{label}</button>)}
+        </div>
       </nav>
 
-      <main style={styles.container}>
-        {message && <div style={styles.success}>{message}</div>}
-        {error && <div style={styles.error}>{error}</div>}
+      <main className="dashboard-shell">
+        {message && <div className="alert success-alert floating-alert">✓ {message}</div>}
+        {error && <div className="alert error-alert floating-alert">! {error}</div>}
 
         {page === "home" && (
           <>
-            <section style={styles.hero}>
-              <div>
-                <h1>Football Matches</h1>
-                <p>Choose your selections and add them to your bet slip.</p>
-              </div>
-              <div style={styles.balanceMini}>
-                Balance
-                <strong>{money(wallet?.balance)}</strong>
-              </div>
+            <section className="dashboard-hero">
+              <div className="hero-copy"><span className="eyebrow">TODAY'S FOOTBALL</span><h1>Pick your match.<br /><span>Build your bet.</span></h1><p>Browse today's fixtures, compare markets and add your selections to the bet slip.</p><div className="hero-actions"><button className="main-btn" onClick={() => document.getElementById("matches-section")?.scrollIntoView({ behavior: "smooth" })}>Explore matches →</button><button className="ghost-btn" onClick={() => setPage("virtuals")}>🎮 Virtual Games</button></div></div>
+              <div className="hero-ball">⚽<div className="hero-ring" /></div>
+              <div className="hero-balance"><small>AVAILABLE BALANCE</small><strong>{money(wallet?.balance)}</strong><button onClick={() => setPage("wallet")}>Manage wallet</button></div>
             </section>
 
-            <div style={styles.layout}>
-              <section>
-                {matches.length === 0 ? (
-                  <div style={styles.card}>No active matches available yet.</div>
-                ) : (
-                  matches.map((match) => {
-                    const groups = marketGroups(match.match_odds);
-                    return (
-                      <div style={styles.matchCard} key={match.id}>
-                        <div style={styles.matchTop}>
-                          <span>{fmtDate(match.start_time)}</span>
-                          <span>{match.status || "Scheduled"}</span>
-                        </div>
+            <section className="quick-grid">
+              <button onClick={() => setPage("wallet")}><span className="quick-icon green">💰</span><div><b>Deposit Funds</b><small>Add money to your wallet</small></div><span>›</span></button>
+              <button onClick={() => setPage("bets")}><span className="quick-icon purple">🎟️</span><div><b>My Bets</b><small>{bets.length} recorded bet{bets.length === 1 ? "" : "s"}</small></div><span>›</span></button>
+              <button onClick={() => setPage("virtuals")}><span className="quick-icon orange">🎮</span><div><b>Virtual Games</b><small>10 games available</small></div><span>›</span></button>
+              <button onClick={() => setPage("transactions")}><span className="quick-icon blue">↔</span><div><b>Transactions</b><small>View wallet activity</small></div><span>›</span></button>
+            </section>
 
-                        <div style={styles.teams}>
-                          <strong>{match.home_team}</strong>
-                          <span>vs</span>
-                          <strong>{match.away_team}</strong>
-                        </div>
-
-                        {Object.keys(groups).length === 0 ? (
-                          <div style={styles.noOdds}>Odds not available.</div>
-                        ) : (
-                          Object.entries(groups).map(([market, odds]) => (
-                            <div key={market} style={styles.market}>
-                              <div style={styles.marketTitle}>{market}</div>
-                              <div style={styles.oddsGrid}>
-                                {odds.map((odd) => (
-                                  <button
-                                    key={odd.id}
-                                    style={styles.oddBtn}
-                                    onClick={() => addToSlip(match, odd)}
-                                  >
-                                    <span>{odd.selection}</span>
-                                    <b>{Number(odd.odd).toFixed(2)}</b>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    );
-                  })
-                )}
+            <div className="content-heading" id="matches-section"><div><span className="eyebrow">MATCH CENTRE</span><h2>Today's matches</h2></div><button className="outline-btn">All markets</button></div>
+            <div className="main-columns">
+              <section className="matches-column">
+                <div className="match-filter"><span className="filter-active">🔥 Popular</span><span>⚽ Football</span><span>🏆 Top leagues</span><span>⭐ Featured</span></div>
+                {matches.length === 0 ? <div className="empty-card"><div>⚽</div><h3>No active matches yet</h3><p>Matches will appear here when they are available in your database.</p></div> : matches.map(match => {
+                  const groups = marketGroups(match.match_odds);
+                  return <article className="match-card" key={match.id}>
+                    <div className="match-card-top"><span className="league-pill">⚽ Football</span><span>{fmtDate(match.start_time)}</span><span className="status-dot">● {match.status || "Scheduled"}</span></div>
+                    <div className="match-teams"><div className="team"><div className="team-badge">{(match.home_team || "H").charAt(0)}</div><strong>{match.home_team}</strong></div><div className="versus"><small>START</small><b>VS</b><small>{new Date(match.start_time).toLocaleTimeString("en-GH", {hour:"2-digit", minute:"2-digit"})}</small></div><div className="team"><div className="team-badge away">{(match.away_team || "A").charAt(0)}</div><strong>{match.away_team}</strong></div></div>
+                    <div className="market-area">{Object.keys(groups).length === 0 ? <div className="no-odds">Odds not available for this match.</div> : Object.entries(groups).map(([market, odds]) => <div className="market-block" key={market}><div className="market-heading"><b>{market}</b><span>Tap an odd to add</span></div><div className="odds-row">{odds.map(odd => <button className="odd-card" key={odd.id} onClick={() => addToSlip(match, odd)}><span>{odd.selection}</span><strong>{Number(odd.odd).toFixed(2)}</strong></button>)}</div></div>)}</div>
+                  </article>;
+                })}
               </section>
-
-              <aside style={styles.slip}>
-                <div style={styles.slipTitle}>
-                  <strong>Bet Slip</strong>
-                  <span>{betSlip.length}</span>
-                </div>
-
-                {betSlip.length === 0 ? (
-                  <p style={styles.muted}>
-                    Select an odd from the matches to add it here.
-                  </p>
-                ) : (
-                  <>
-                    {betSlip.map((item) => (
-                      <div
-                        key={`${item.matchId}-${item.market}`}
-                        style={styles.slipItem}
-                      >
-                        <div>
-                          <strong>
-                            {item.homeTeam} vs {item.awayTeam}
-                          </strong>
-                          <div style={styles.small}>
-                            {item.market} · {item.selection} ·{" "}
-                            {item.odd.toFixed(2)}
-                          </div>
-                        </div>
-                        <button
-                          style={styles.remove}
-                          onClick={() =>
-                            removeFromSlip(item.matchId, item.market)
-                          }
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-
-                    <div style={styles.summary}>
-                      <span>Combined odds</span>
-                      <strong>{combinedOdds.toFixed(2)}</strong>
-                    </div>
-
-                    <div style={styles.summary}>
-                      <span>Potential win</span>
-                      <strong>{money(potentialWin)}</strong>
-                    </div>
-
-                    <input
-                      style={styles.input}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Stake (GHS)"
-                      value={stake}
-                      onChange={(e) => setStake(e.target.value)}
-                    />
-
-                    <button
-                      style={styles.primary}
-                      onClick={placeBet}
-                      disabled={busy}
-                    >
-                      {busy ? "Processing..." : "Place Bet"}
-                    </button>
-                  </>
-                )}
+              <aside className="bet-slip">
+                <div className="slip-head"><div><span className="eyebrow">YOUR SELECTIONS</span><h3>Bet Slip</h3></div><span className="slip-count">{betSlip.length}</span></div>
+                {betSlip.length === 0 ? <div className="slip-empty"><div>🎟️</div><h4>Your slip is empty</h4><p>Select an odd from any match and it will appear here.</p><button className="outline-btn" onClick={() => document.getElementById("matches-section")?.scrollIntoView({behavior:"smooth"})}>Find a match</button></div> : <><div className="slip-list">{betSlip.map(item => <div className="slip-selection" key={`${item.matchId}-${item.market}`}><div><b>{item.homeTeam} <span>vs</span> {item.awayTeam}</b><small>{item.market} • {item.selection}</small><strong>Odds {item.odd.toFixed(2)}</strong></div><button onClick={() => removeFromSlip(item.matchId, item.market)}>×</button></div>)}</div><div className="slip-total"><span>Combined odds</span><b>{combinedOdds.toFixed(2)}</b></div><label className="stake-label">Stake amount<input type="number" min="0" step="0.01" value={stake} onChange={e => setStake(e.target.value)} placeholder="Enter stake (GHS)" /></label><div className="win-box"><span>Potential return</span><strong>{money(potentialWin)}</strong></div><button className="main-btn place-btn" onClick={placeBet} disabled={busy}>{busy ? "Processing..." : "Place Bet →"}</button></>}
               </aside>
             </div>
           </>
         )}
 
-        {page === "virtuals" && (
-          <section>
-            <section style={styles.virtualHero}>
-              <div>
-                <div style={styles.virtualEyebrow}>VIRTUAL SPORTS</div>
-                <h1 style={{ margin: "6px 0 8px" }}>10 Virtual Games</h1>
-                <p style={{ margin: 0, opacity: 0.9 }}>
-                  Choose a virtual game below. These cards restore your Virtual Games section in the interface.
-                </p>
-              </div>
-              <div style={styles.virtualCount}>10</div>
-            </section>
+        {page === "virtuals" && <section className="virtual-page"><div className="virtual-hero"><div><span className="eyebrow">VIRTUAL ZONE</span><h1>10 ways to play. <span>One place.</span></h1><p>Explore our virtual-game collection with quick, colorful game cards.</p></div><div className="virtual-orbit">🎮</div></div><div className="section-title"><div><span className="eyebrow">GAME LOUNGE</span><h2>Virtual Games</h2></div><span className="game-count">10 GAMES</span></div><div className="virtual-grid">{virtualGames.map((game, i) => <article className="virtual-card" key={game.title}><div className={`virtual-icon v-${i % 5}`}>{game.icon}</div><span className="game-tag">{game.tag}</span><h3>{game.title}</h3><p>{game.text}</p><button onClick={() => flash(`${game.title} is a game interface placeholder. Connect a real virtual-games provider/API before taking real play.`)}>Play Now <span>→</span></button></article>)}</div><div className="provider-note"><span>ℹ️</span><div><b>Virtual games provider</b><p>These are interface cards only. A real virtual-games provider/API must be connected before these games can process real play.</p></div></div></section>}
 
-            <div style={styles.virtualGrid}>
-              {virtualGames.map((game) => (
-                <article key={game.name} style={styles.virtualCard}>
-                  <div style={styles.virtualIcon}>{game.icon}</div>
-                  <h3 style={{ margin: "4px 0 6px" }}>{game.name}</h3>
-                  <p style={styles.muted}>{game.desc}</p>
-                  <button
-                    style={styles.virtualButton}
-                    onClick={() =>
-                      flash(`${game.name} opened. Connect your virtual-games provider here for real gameplay.`)
-                    }
-                  >
-                    Play Now
-                  </button>
-                </article>
-              ))}
-            </div>
+        {page === "bets" && <section className="page-section"><div className="section-title"><div><span className="eyebrow">ACCOUNT</span><h2>My Bets</h2></div><span className="count-badge">{bets.length}</span></div>{bets.length === 0 ? <div className="empty-card"><div>🎟️</div><h3>No bets yet</h3><p>Your placed bets will appear here.</p></div> : <div className="data-list">{bets.map(bet => <article className="data-card" key={bet.id}><div className="data-head"><div><span className="mini-label">BET #{String(bet.id).slice(0,8)}</span><h3>{money(bet.stake)} stake</h3></div><span className={`status-badge ${String(bet.status || "pending").toLowerCase()}`}>{bet.status || "pending"}</span></div><div className="stat-grid"><div><small>Combined odds</small><b>{Number(bet.combined_odds || 0).toFixed(2)}</b></div><div><small>Potential win</small><b>{money(bet.potential_win)}</b></div><div><small>Placed</small><b>{fmtDate(bet.created_at)}</b></div></div></article>)}</div>}</section>}
 
-            <div style={styles.virtualNote}>
-              <strong>Important:</strong> this restores the 10-game Virtual Games screen. Real playable virtual results still require the virtual-games provider/API that was not present in this saved App.jsx.
-            </div>
-          </section>
-        )}
+        {page === "wallet" && <section className="page-section"><div className="wallet-banner"><div><span className="eyebrow">YOUR WALLET</span><p>Available balance</p><h1>{money(wallet?.balance)}</h1><small>{wallet?.currency || "GHS"} wallet</small></div><div className="wallet-symbol">💰</div></div><div className="section-title"><div><span className="eyebrow">MONEY MANAGEMENT</span><h2>Deposit & Withdraw</h2></div></div><div className="form-grid"><form className="form-card deposit-card" onSubmit={requestDeposit}><div className="form-icon">＋</div><h3>Deposit funds</h3><p>Submit your payment details. Your balance changes after verification.</p><label>Amount (GHS)<input type="number" min="0" step="0.01" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="0.00" /></label><label>Payment method<select value={depositMethod} onChange={e => setDepositMethod(e.target.value)}><option>Mobile Money</option><option>Bank Transfer</option></select></label><label>Payment/reference number<input value={depositReference} onChange={e => setDepositReference(e.target.value)} placeholder="Reference number" /></label><button className="main-btn" disabled={busy}>Submit deposit →</button></form><form className="form-card withdraw-card" onSubmit={requestWithdrawal}><div className="form-icon">↗</div><h3>Withdraw funds</h3><p>Request a withdrawal to an account or mobile-money destination you control.</p><label>Amount (GHS)<input type="number" min="0" step="0.01" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} placeholder="0.00" /></label><label>Payment method<select value={withdrawMethod} onChange={e => setWithdrawMethod(e.target.value)}><option>Mobile Money</option><option>Bank Transfer</option></select></label><label>Destination/account<input value={withdrawDestination} onChange={e => setWithdrawDestination(e.target.value)} placeholder="Mobile money or account" /></label><button className="main-btn" disabled={busy}>Request withdrawal →</button></form></div></section>}
 
-        {page === "bets" && (
-          <section>
-            <h2>My Bets</h2>
-            {bets.length === 0 ? (
-              <div style={styles.card}>You have no bets yet.</div>
-            ) : (
-              bets.map((bet) => (
-                <div style={styles.card} key={bet.id}>
-                  <div style={styles.row}>
-                    <strong>Bet #{String(bet.id).slice(0, 8)}</strong>
-                    <span style={styles.badge}>{bet.status || "pending"}</span>
-                  </div>
-                  <div style={styles.summary}>
-                    <span>Stake</span>
-                    <strong>{money(bet.stake)}</strong>
-                  </div>
-                  <div style={styles.summary}>
-                    <span>Combined odds</span>
-                    <strong>{Number(bet.combined_odds || 0).toFixed(2)}</strong>
-                  </div>
-                  <div style={styles.summary}>
-                    <span>Potential win</span>
-                    <strong>{money(bet.potential_win)}</strong>
-                  </div>
-                  <div style={styles.small}>{fmtDate(bet.created_at)}</div>
-                </div>
-              ))
-            )}
-          </section>
-        )}
+        {page === "transactions" && <section className="page-section"><div className="section-title"><div><span className="eyebrow">WALLET HISTORY</span><h2>Transactions</h2></div><span className="count-badge">{transactions.length}</span></div>{transactions.length === 0 ? <div className="empty-card"><div>↔</div><h3>No transactions yet</h3><p>Your wallet activity will appear here.</p></div> : <div className="transaction-list">{transactions.map(tx => <article className="transaction-card" key={tx.id}><div className={`transaction-icon ${String(tx.type || "").toLowerCase().includes("deposit") ? "positive" : "neutral"}`}>{String(tx.type || "").toLowerCase().includes("deposit") ? "＋" : "↔"}</div><div className="transaction-info"><b>{tx.type || "Transaction"}</b><span>{tx.description || "Wallet transaction"}</span><small>{fmtDate(tx.created_at)}</small></div><strong>{money(tx.amount)}</strong></article>)}</div>}</section>}
 
-        {page === "wallet" && (
-          <section>
-            <div style={styles.walletHero}>
-              <span>Available balance</span>
-              <strong>{money(wallet?.balance)}</strong>
-              <small>{wallet?.currency || "GHS"}</small>
-            </div>
-
-            <div style={styles.twoCol}>
-              <form style={styles.card} onSubmit={requestDeposit}>
-                <h3>Deposit request</h3>
-                <p style={styles.muted}>
-                  Submit your payment reference. The wallet is credited only
-                  after payment verification.
-                </p>
-                <input
-                  style={styles.input}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Amount (GHS)"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                />
-                <select
-                  style={styles.input}
-                  value={depositMethod}
-                  onChange={(e) => setDepositMethod(e.target.value)}
-                >
-                  <option>Mobile Money</option>
-                  <option>Bank Transfer</option>
-                </select>
-                <input
-                  style={styles.input}
-                  placeholder="Payment/reference number"
-                  value={depositReference}
-                  onChange={(e) => setDepositReference(e.target.value)}
-                />
-                <button style={styles.primary} disabled={busy}>
-                  Submit deposit
-                </button>
-              </form>
-
-              <form style={styles.card} onSubmit={requestWithdrawal}>
-                <h3>Withdrawal request</h3>
-                <p style={styles.muted}>
-                  Use an account or mobile-money destination you are authorized
-                  to receive funds at.
-                </p>
-                <input
-                  style={styles.input}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Amount (GHS)"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                />
-                <select
-                  style={styles.input}
-                  value={withdrawMethod}
-                  onChange={(e) => setWithdrawMethod(e.target.value)}
-                >
-                  <option>Mobile Money</option>
-                  <option>Bank Transfer</option>
-                </select>
-                <input
-                  style={styles.input}
-                  placeholder="Destination/account"
-                  value={withdrawDestination}
-                  onChange={(e) => setWithdrawDestination(e.target.value)}
-                />
-                <button style={styles.primary} disabled={busy}>
-                  Submit withdrawal
-                </button>
-              </form>
-            </div>
-          </section>
-        )}
-
-        {page === "transactions" && (
-          <section>
-            <h2>Transactions</h2>
-            {transactions.length === 0 ? (
-              <div style={styles.card}>No transactions yet.</div>
-            ) : (
-              transactions.map((tx) => (
-                <div style={styles.card} key={tx.id}>
-                  <div style={styles.row}>
-                    <strong>{tx.type || "Transaction"}</strong>
-                    <strong>{money(tx.amount)}</strong>
-                  </div>
-                  <div style={styles.small}>
-                    {tx.description || ""}
-                  </div>
-                  <div style={styles.small}>{fmtDate(tx.created_at)}</div>
-                </div>
-              ))
-            )}
-          </section>
-        )}
-
-        {page === "admin" && isAdmin && (
-          <AdminPanel onRefresh={loadAll} />
-        )}
+        {page === "admin" && isAdmin && <AdminPanel onRefresh={loadAll} />}
       </main>
+      <footer className="site-footer"><b>CLASSIC SPORTY HACKS</b><span>Football match centre • Use responsibly</span></footer>
     </div>
   );
 }
@@ -925,475 +651,15 @@ function AdminPanel({ onRefresh }) {
   }
 
   return (
-    <section>
-      <h2>Admin Dashboard</h2>
-      {error && <div style={styles.error}>{error}</div>}
-      {msg && <div style={styles.success}>{msg}</div>}
-
-      <div style={styles.twoCol}>
-        <div style={styles.card}>
-          <h3>Wallet adjustment</h3>
-          <select
-            style={styles.input}
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-          >
-            <option value="">Select user</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.full_name || u.email || u.id}
-              </option>
-            ))}
-          </select>
-
-          <input
-            style={styles.input}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-
-          <div style={styles.buttonRow}>
-            <button
-              style={styles.primary}
-              disabled={busy}
-              onClick={() => adjustWallet("credit")}
-            >
-              Credit
-            </button>
-            <button
-              style={styles.secondary}
-              disabled={busy}
-              onClick={() => adjustWallet("debit")}
-            >
-              Debit
-            </button>
-          </div>
-        </div>
-
-        <div style={styles.card}>
-          <h3>Settle bet</h3>
-          <input
-            style={styles.input}
-            placeholder="Bet UUID"
-            value={settleBetId}
-            onChange={(e) => setSettleBetId(e.target.value)}
-          />
-          <select
-            style={styles.input}
-            value={result}
-            onChange={(e) => setResult(e.target.value)}
-          >
-            <option value="won">Won</option>
-            <option value="lost">Lost</option>
-            <option value="void">Void</option>
-          </select>
-          <button style={styles.primary} disabled={busy} onClick={settle}>
-            Settle bet
-          </button>
-        </div>
+    <section className="page-section admin-page">
+      <div className="admin-hero"><div><span className="eyebrow">CONTROL CENTRE</span><h1>Admin Dashboard</h1><p>Manage users, wallets, bets and transactions from one place.</p></div><button className="outline-btn light" onClick={loadAdmin}>↻ Refresh</button></div>
+      {error && <div className="alert error-alert">{error}</div>}{msg && <div className="alert success-alert">✓ {msg}</div>}
+      <div className="admin-stat-grid"><div><span>👥</span><b>{users.length}</b><small>Users</small></div><div><span>🎟️</span><b>{adminBets.length}</b><small>Bets</small></div><div><span>💳</span><b>{adminTransactions.length}</b><small>Transactions</small></div><div><span>⚡</span><b>Live</b><small>Platform status</small></div></div>
+      <div className="form-grid admin-tools">
+        <div className="form-card"><div className="form-icon">💰</div><h3>Wallet adjustment</h3><p>Credit or debit a selected user's wallet.</p><select value={userId} onChange={e => setUserId(e.target.value)}><option value="">Select user</option>{users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email || u.id}</option>)}</select><input type="number" min="0" step="0.01" placeholder="Amount" value={amount} onChange={e => setAmount(e.target.value)} /><div className="two-buttons"><button className="main-btn" disabled={busy} onClick={() => adjustWallet("credit")}>Credit</button><button className="outline-btn" disabled={busy} onClick={() => adjustWallet("debit")}>Debit</button></div></div>
+        <div className="form-card"><div className="form-icon">🎯</div><h3>Settle bet</h3><p>Update the result of a bet using its UUID.</p><input placeholder="Bet UUID" value={settleBetId} onChange={e => setSettleBetId(e.target.value)} /><select value={result} onChange={e => setResult(e.target.value)}><option value="won">Won</option><option value="lost">Lost</option><option value="void">Void</option></select><button className="main-btn" disabled={busy} onClick={settle}>Settle bet →</button></div>
       </div>
-
-      <div style={styles.card}>
-        <h3>Users</h3>
-        {users.length === 0 ? (
-          <p style={styles.muted}>No users returned.</p>
-        ) : (
-          users.map((u) => (
-            <div style={styles.row} key={u.id}>
-              <span>
-                <strong>{u.full_name || "Unnamed"}</strong>
-                <br />
-                <span style={styles.small}>{u.email}</span>
-              </span>
-              <span>{u.role}</span>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div style={styles.card}>
-        <h3>Recent bets</h3>
-        {adminBets.slice(0, 20).map((b) => (
-          <div style={styles.row} key={b.id}>
-            <span>{String(b.id).slice(0, 8)}</span>
-            <span>{b.status}</span>
-            <span>{money(b.stake)}</span>
-          </div>
-        ))}
-      </div>
-
-      <div style={styles.card}>
-        <h3>Recent transactions</h3>
-        {adminTransactions.slice(0, 20).map((t) => (
-          <div style={styles.row} key={t.id}>
-            <span>{t.type}</span>
-            <span>{money(t.amount)}</span>
-            <span>{fmtDate(t.created_at)}</span>
-          </div>
-        ))}
-      </div>
+      <div className="admin-tables"><div className="table-card"><div className="table-head"><h3>Users</h3><span>{users.length} total</span></div>{users.length === 0 ? <p className="muted">No users returned.</p> : users.map(u => <div className="table-row" key={u.id}><div className="user-row"><span className="user-avatar">{(u.full_name || u.email || "U").charAt(0).toUpperCase()}</span><div><b>{u.full_name || "Unnamed"}</b><small>{u.email}</small></div></div><span className="role-badge">{u.role}</span></div>)}</div><div className="table-card"><div className="table-head"><h3>Recent bets</h3><span>Latest 20</span></div>{adminBets.slice(0,20).map(b => <div className="table-row" key={b.id}><span>#{String(b.id).slice(0,8)}</span><span className={`status-badge ${String(b.status || "").toLowerCase()}`}>{b.status}</span><b>{money(b.stake)}</b></div>)}</div><div className="table-card"><div className="table-head"><h3>Recent transactions</h3><span>Latest 20</span></div>{adminTransactions.slice(0,20).map(t => <div className="table-row" key={t.id}><span>{t.type}</span><b>{money(t.amount)}</b><small>{fmtDate(t.created_at)}</small></div>)}</div></div>
     </section>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "#f4f7f5",
-    color: "#17221c",
-    fontFamily:
-      "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  },
-  header: {
-    background: "#08783f",
-    color: "white",
-    padding: "16px 5%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 15,
-  },
-  brand: { fontWeight: 900, fontSize: 20, letterSpacing: 0.4 },
-  headerSmall: { opacity: 0.85, fontSize: 12, marginTop: 3 },
-  logout: {
-    border: "1px solid rgba(255,255,255,.5)",
-    background: "transparent",
-    color: "white",
-    borderRadius: 8,
-    padding: "9px 14px",
-    cursor: "pointer",
-  },
-  nav: {
-    background: "white",
-    borderBottom: "1px solid #dfe7e2",
-    display: "flex",
-    gap: 5,
-    padding: "8px 5%",
-    overflowX: "auto",
-  },
-  navBtn: {
-    border: 0,
-    background: "transparent",
-    padding: "10px 14px",
-    borderRadius: 8,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  navActive: {
-    border: 0,
-    background: "#e4f6eb",
-    color: "#08783f",
-    fontWeight: 800,
-    padding: "10px 14px",
-    borderRadius: 8,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  container: { width: "min(1200px, 92%)", margin: "24px auto 60px" },
-  hero: {
-    background: "#08783f",
-    color: "white",
-    borderRadius: 14,
-    padding: 22,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 20,
-    alignItems: "center",
-    marginBottom: 18,
-  },
-  balanceMini: {
-    background: "rgba(255,255,255,.13)",
-    padding: "12px 16px",
-    borderRadius: 10,
-    minWidth: 150,
-    display: "grid",
-    gap: 4,
-  },
-  layout: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 360px",
-    gap: 18,
-    alignItems: "start",
-  },
-  matchCard: {
-    background: "white",
-    border: "1px solid #e1e8e4",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 14,
-    boxShadow: "0 3px 12px rgba(0,0,0,.04)",
-  },
-  matchTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    color: "#708078",
-    fontSize: 12,
-  },
-  teams: {
-    display: "flex",
-    justifyContent: "center",
-    gap: 12,
-    alignItems: "center",
-    padding: "16px 4px",
-    fontSize: 16,
-    textAlign: "center",
-  },
-  market: { marginTop: 10 },
-  marketTitle: { fontWeight: 800, fontSize: 13, marginBottom: 7 },
-  oddsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit,minmax(90px,1fr))",
-    gap: 7,
-  },
-  oddBtn: {
-    border: "1px solid #d7e3dc",
-    background: "#f8fbf9",
-    borderRadius: 7,
-    padding: "9px 7px",
-    cursor: "pointer",
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 5,
-  },
-  slip: {
-    background: "white",
-    borderRadius: 12,
-    padding: 16,
-    border: "1px solid #e1e8e4",
-    position: "sticky",
-    top: 15,
-  },
-  slipTitle: {
-    display: "flex",
-    justifyContent: "space-between",
-    borderBottom: "1px solid #e7ece9",
-    paddingBottom: 12,
-    marginBottom: 10,
-  },
-  slipItem: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 8,
-    padding: "11px 0",
-    borderBottom: "1px solid #edf1ee",
-    fontSize: 13,
-  },
-  remove: {
-    border: 0,
-    background: "#ffe9e9",
-    color: "#b42318",
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    cursor: "pointer",
-  },
-  summary: {
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "9px 0",
-    fontSize: 14,
-  },
-  primary: {
-    width: "100%",
-    border: 0,
-    background: "#08783f",
-    color: "white",
-    padding: "12px 14px",
-    borderRadius: 8,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  secondary: {
-    width: "100%",
-    border: "1px solid #cfdad4",
-    background: "white",
-    padding: "12px 14px",
-    borderRadius: 8,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "12px 13px",
-    border: "1px solid #cfdad4",
-    borderRadius: 8,
-    marginBottom: 10,
-    background: "white",
-    fontSize: 14,
-  },
-  card: {
-    background: "white",
-    border: "1px solid #e1e8e4",
-    borderRadius: 12,
-    padding: 18,
-    marginBottom: 15,
-  },
-  walletHero: {
-    background: "#08783f",
-    color: "white",
-    borderRadius: 14,
-    padding: 25,
-    display: "grid",
-    gap: 5,
-    marginBottom: 18,
-  },
-  twoCol: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-    gap: 15,
-  },
-  row: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    alignItems: "center",
-    padding: "10px 0",
-    borderBottom: "1px solid #edf1ee",
-  },
-  buttonRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
-  badge: {
-    background: "#edf7f0",
-    color: "#08783f",
-    padding: "4px 8px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 800,
-  },
-  small: { color: "#748078", fontSize: 12, marginTop: 4 },
-  muted: { color: "#6e7b74", lineHeight: 1.5 },
-  noOdds: { color: "#87938d", fontSize: 13 },
-  error: {
-    background: "#fff0f0",
-    color: "#a51d1d",
-    border: "1px solid #f1c3c3",
-    padding: "11px 13px",
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  success: {
-    background: "#edf9f1",
-    color: "#08783f",
-    border: "1px solid #c9ead4",
-    padding: "11px 13px",
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  authWrap: {
-    minHeight: "calc(100vh - 75px)",
-    display: "grid",
-    placeItems: "center",
-    padding: 20,
-  },
-  authCard: {
-    width: "min(420px, 100%)",
-    background: "white",
-    padding: 28,
-    borderRadius: 16,
-    boxShadow: "0 10px 35px rgba(0,0,0,.08)",
-    border: "1px solid #e1e8e4",
-  },
-  logoCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: "50%",
-    background: "#08783f",
-    color: "white",
-    display: "grid",
-    placeItems: "center",
-    fontWeight: 900,
-    marginBottom: 14,
-  },
-  linkButton: {
-    width: "100%",
-    border: 0,
-    background: "transparent",
-    color: "#08783f",
-    padding: 12,
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-  virtualHero: {
-    background: "linear-gradient(135deg, #0a8f4d, #19b86a)",
-    color: "white",
-    borderRadius: 18,
-    padding: 22,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-    marginBottom: 18,
-    boxShadow: "0 12px 30px rgba(8,120,63,.18)",
-  },
-  virtualEyebrow: {
-    fontSize: 12,
-    fontWeight: 900,
-    letterSpacing: 1.4,
-    opacity: 0.9,
-  },
-  virtualCount: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    background: "rgba(255,255,255,.18)",
-    display: "grid",
-    placeItems: "center",
-    fontSize: 28,
-    fontWeight: 900,
-    flexShrink: 0,
-  },
-  virtualGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
-    gap: 14,
-  },
-  virtualCard: {
-    background: "white",
-    border: "1px solid #e1e8e4",
-    borderRadius: 16,
-    padding: 18,
-    boxShadow: "0 7px 20px rgba(0,0,0,.05)",
-  },
-  virtualIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    display: "grid",
-    placeItems: "center",
-    fontSize: 28,
-    background: "#e9fff2",
-    marginBottom: 12,
-  },
-  virtualButton: {
-    width: "100%",
-    border: 0,
-    background: "#08783f",
-    color: "white",
-    padding: "11px 12px",
-    borderRadius: 9,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  virtualNote: {
-    marginTop: 16,
-    background: "#fff8df",
-    border: "1px solid #f2dda0",
-    color: "#68510c",
-    padding: 13,
-    borderRadius: 10,
-    lineHeight: 1.45,
-    fontSize: 13,
-  },
-  loading: {
-    minHeight: "100vh",
-    display: "grid",
-    placeItems: "center",
-    fontFamily: "system-ui",
-  },
-};
-
-export default App;
