@@ -36,8 +36,7 @@ const LEAGUES = [
 ];
 
 const GAME_CATALOG = [
-  { key: "casino", icon: "🎰", title: "CASINO", subtitle: "Instant casino games", description: "Choose a package and enter the Casino area.", tone: "pink" },
-  { key: "bottle", icon: "🍾", title: "FLIP THE BOTTLE", subtitle: "Quick bottle rounds", description: "Fast Flip the Bottle rounds with simple game play.", tone: "orange" },
+ { key: "casino", icon: "🪙", title: "COIN FLIP", subtitle: "Instant coin flip", description: "Flip the coin, choose Heads or Tails, and play from GHS 50.", tone: "blue" }, { key: "bottle", icon: "🍾", title: "FLIP THE BOTTLE", subtitle: "Quick bottle rounds", description: "Fast Flip the Bottle rounds with simple game play.", tone: "orange" },
   { key: "football", icon: "⚽", title: "FOOTBALL", subtitle: "Virtual football", description: "Virtual football packages with named teams and match rounds.", tone: "blue" },
 ];
 
@@ -1260,6 +1259,9 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefre
     { amount: 500, win: 1000 },
   ];
 
+  // =========================
+  // FLIP THE BOTTLE — unchanged
+  // =========================
   const [selectedStake, setSelectedStake] = useState(null);
   const [bottlePlaying, setBottlePlaying] = useState(false);
   const [bottleResult, setBottleResult] = useState(null);
@@ -1281,7 +1283,6 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefre
     setBottlePlaying(true);
 
     try {
-      // The wallet is charged only when the round completes on the secure RPC.
       await new Promise((resolve) => setTimeout(resolve, 1800));
 
       const { data, error: rpcError } = await supabase.rpc("play_flip_bottle", {
@@ -1320,20 +1321,390 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefre
     }
   }
 
+  // =========================
+  // COIN FLIP — Casino only
+  // =========================
+  const [coinStake, setCoinStake] = useState("");
+  const [coinChoice, setCoinChoice] = useState("");
+  const [coinPlaying, setCoinPlaying] = useState(false);
+  const [coinResult, setCoinResult] = useState(null);
+  const [coinError, setCoinError] = useState("");
+
+  const coinAmount = Number(coinStake || 0);
+  const coinPotentialWin = coinAmount >= 50 ? coinAmount * 3 : 0;
+
+  async function playCoinFlip() {
+    if (coinPlaying) return;
+
+    setCoinError("");
+    setCoinResult(null);
+
+    if (!Number.isFinite(coinAmount) || coinAmount < 50) {
+      setCoinError("Minimum coin flip stake is GHS 50.00.");
+      return;
+    }
+
+    if (!["HEADS", "TAILS"].includes(coinChoice)) {
+      setCoinError("Choose HEADS or TAILS first.");
+      return;
+    }
+
+    const balance = Number(wallet?.balance || 0);
+
+    if (balance < coinAmount) {
+      setCoinError("Insufficient wallet balance for this stake.");
+      return;
+    }
+
+    setCoinPlaying(true);
+
+    try {
+      // The secure Supabase RPC performs the actual wallet debit,
+      // random result and payout atomically.
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+
+      const { data, error: rpcError } = await supabase.rpc("play_coin_flip", {
+        p_stake: coinAmount,
+        p_choice: coinChoice,
+      });
+
+      if (rpcError) throw rpcError;
+
+      const resultData = data || {};
+      const result = String(resultData.result || "").toUpperCase();
+      const outcome = String(resultData.outcome || "").toUpperCase();
+      const payout = Number(resultData.payout || 0);
+      const newBalance = Number(resultData.new_balance);
+
+      if (!["HEADS", "TAILS"].includes(result)) {
+        throw new Error("The coin flip returned an invalid result.");
+      }
+
+      if (!["WIN", "LOSE"].includes(outcome)) {
+        throw new Error("The coin flip returned an invalid outcome.");
+      }
+
+      setCoinResult({
+        result,
+        choice: coinChoice,
+        outcome,
+        stake: coinAmount,
+        payout,
+        newBalance,
+      });
+
+      await onRefresh();
+    } catch (e) {
+      setCoinError(e?.message || "The coin flip could not be completed.");
+    } finally {
+      setCoinPlaying(false);
+    }
+  }
+
+  function resetCoinFlip() {
+    setCoinStake("");
+    setCoinChoice("");
+    setCoinResult(null);
+    setCoinError("");
+    setCoinPlaying(false);
+  }
+
   return (
     <section className="page-section game-detail-page">
-      <button className="back-link" type="button" onClick={onBack}>← Back to Games</button>
+      <button className="back-link" type="button" onClick={onBack}>
+        ← Back to Games
+      </button>
 
       <div className="game-detail-hero">
         <div className="game-detail-icon">{game.icon}</div>
         <div>
           <span className="eyebrow">{game.subtitle}</span>
           <h1>{game.title}</h1>
-          <p>Current wallet: <strong>{money(wallet?.balance)}</strong></p>
+          <p>
+            Current wallet: <strong>{money(wallet?.balance)}</strong>
+          </p>
         </div>
       </div>
 
-      {game.key === "bottle" ? (
+      {/* =========================
+          CASINO = COIN FLIP ONLY
+          ========================= */}
+      {game.key === "casino" ? (
+        <div className="coinflip-page">
+          {!coinPlaying && !coinResult ? (
+            <>
+              <div
+                style={{
+                  marginTop: 22,
+                  padding: 30,
+                  borderRadius: 28,
+                  background:
+                    "linear-gradient(135deg,#fff5df 0%,#fff 52%,#eef7ff 100%)",
+                  border: "1px solid #eadfcf",
+                  textAlign: "center",
+                  boxShadow: "0 18px 50px rgba(30,41,59,.08)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 76,
+                    lineHeight: 1,
+                    marginBottom: 12,
+                  }}
+                >
+                  🪙
+                </div>
+
+                <span className="eyebrow">CLASSIC CASINO</span>
+                <h2 style={{ margin: "8px 0", fontSize: 34 }}>
+                  COIN FLIP
+                </h2>
+                <p
+                  style={{
+                    maxWidth: 620,
+                    margin: "0 auto 24px",
+                    color: "#667085",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Choose HEADS or TAILS, enter a stake of at least GHS 50,
+                  then flip the coin. A winning round pays <strong>3× the stake</strong>.
+                  The result and wallet balance are shown after every round.
+                </p>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+                    gap: 14,
+                    maxWidth: 560,
+                    margin: "0 auto 20px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className={`package-card ${coinChoice === "HEADS" ? "selected-stake-card" : ""}`}
+                    onClick={() => {
+                      setCoinChoice("HEADS");
+                      setCoinError("");
+                    }}
+                  >
+                    <div style={{ fontSize: 38, marginBottom: 8 }}>🪙</div>
+                    <strong style={{ fontSize: 20 }}>HEADS</strong>
+                    <div className="package-action">
+                      {coinChoice === "HEADS" ? "✓ SELECTED" : "CHOOSE HEADS"}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`package-card ${coinChoice === "TAILS" ? "selected-stake-card" : ""}`}
+                    onClick={() => {
+                      setCoinChoice("TAILS");
+                      setCoinError("");
+                    }}
+                  >
+                    <div style={{ fontSize: 38, marginBottom: 8 }}>🪙</div>
+                    <strong style={{ fontSize: 20 }}>TAILS</strong>
+                    <div className="package-action">
+                      {coinChoice === "TAILS" ? "✓ SELECTED" : "CHOOSE TAILS"}
+                    </div>
+                  </button>
+                </div>
+
+                <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "left" }}>
+                  <label>Stake amount (GHS)</label>
+                  <input
+                    className="field"
+                    type="number"
+                    min="50"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="50.00"
+                    value={coinStake}
+                    onChange={(e) => {
+                      setCoinStake(e.target.value);
+                      setCoinError("");
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 16,
+                      borderRadius: 16,
+                      background: "#f8fafc",
+                      border: "1px solid #e5e7eb",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <span style={{ display: "block", fontSize: 12, color: "#667085" }}>
+                        YOUR WALLET
+                      </span>
+                      <strong>{money(wallet?.balance)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ display: "block", fontSize: 12, color: "#667085" }}>
+                        POTENTIAL WIN
+                      </span>
+                      <strong>{coinPotentialWin ? money(coinPotentialWin) : "—"}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {coinError && (
+                  <div className="alert error" style={{ maxWidth: 560, margin: "16px auto 0", textAlign: "left" }}>
+                    {coinError}
+                  </div>
+                )}
+
+                <button
+                  className="btn btn-primary big-btn"
+                  type="button"
+                  disabled={coinPlaying}
+                  onClick={playCoinFlip}
+                  style={{ maxWidth: 560, width: "100%", marginTop: 18 }}
+                >
+                  Flip Coin
+                </button>
+
+                <div className="helper" style={{ marginTop: 12 }}>
+                  Minimum stake: <strong>GHS 50.00</strong> · Potential win: <strong>3× stake</strong>
+                </div>
+              </div>
+            </>
+          ) : coinPlaying ? (
+            <div
+              style={{
+                marginTop: 22,
+                minHeight: 470,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+                padding: 30,
+                borderRadius: 28,
+                background: "linear-gradient(135deg,#eef7ff,#fff)",
+                border: "1px solid #dbe7f5",
+              }}
+            >
+              <div
+                style={{
+                  width: 150,
+                  height: 150,
+                  borderRadius: "50%",
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: 82,
+                  background: "#fff",
+                  border: "8px solid #e7edf5",
+                  boxShadow: "0 20px 50px rgba(15,23,42,.15)",
+                  animation: "coinFlipSpin .55s linear infinite",
+                }}
+              >
+                🪙
+              </div>
+              <span className="eyebrow" style={{ marginTop: 28 }}>
+                COIN FLIP IN PROGRESS
+              </span>
+              <h2 style={{ margin: "8px 0" }}>FLIPPING...</h2>
+              <p style={{ color: "#667085" }}>
+                Stake: <strong>{money(coinAmount)}</strong> · Your choice:{" "}
+                <strong>{coinChoice}</strong>
+              </p>
+
+              <style>{`
+                @keyframes coinFlipSpin {
+                  0% { transform: rotateY(0deg) scale(1); }
+                  50% { transform: rotateY(180deg) scale(1.08); }
+                  100% { transform: rotateY(360deg) scale(1); }
+                }
+              `}</style>
+            </div>
+          ) : (
+            <div
+              style={{
+                marginTop: 22,
+                padding: 30,
+                borderRadius: 28,
+                background:
+                  coinResult.outcome === "WIN"
+                    ? "linear-gradient(135deg,#effff5,#fff)"
+                    : "linear-gradient(135deg,#fff7f2,#fff)",
+                border: "1px solid #e4e7ec",
+                textAlign: "center",
+                boxShadow: "0 18px 50px rgba(30,41,59,.08)",
+              }}
+            >
+              <div style={{ fontSize: 82, marginBottom: 10 }}>🪙</div>
+
+              <span className="eyebrow">COIN FLIP RESULT</span>
+
+              <h2 style={{ fontSize: 38, margin: "8px 0" }}>
+                {coinResult.result}
+              </h2>
+
+              <div
+                style={{
+                  maxWidth: 560,
+                  margin: "0 auto 22px",
+                  padding: 20,
+                  borderRadius: 20,
+                  background: "#fff",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                <div style={{ fontSize: 20, fontWeight: 800 }}>
+                  {coinResult.outcome === "WIN"
+                    ? "🎉 YOU WON!"
+                    : "ROUND COMPLETE"}
+                </div>
+
+                <p style={{ color: "#667085", marginBottom: 0 }}>
+                  You chose <strong>{coinResult.choice}</strong>. The coin landed on{" "}
+                  <strong>{coinResult.result}</strong>.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  maxWidth: 560,
+                  margin: "0 auto 22px",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+                  gap: 10,
+                }}
+              >
+                <div className="stat-box">
+                  <span>STAKE</span>
+                  <strong>{money(coinResult.stake)}</strong>
+                </div>
+                <div className="stat-box">
+                  <span>PAYOUT</span>
+                  <strong>{money(coinResult.payout)}</strong>
+                </div>
+                <div className="stat-box">
+                  <span>NEW BALANCE</span>
+                  <strong>{money(coinResult.newBalance)}</strong>
+                </div>
+              </div>
+
+              <button
+                className="btn btn-primary big-btn"
+                type="button"
+                onClick={resetCoinFlip}
+                style={{ maxWidth: 560, width: "100%" }}
+              >
+                Play Again
+              </button>
+            </div>
+          )}
+        </div>
+      ) : game.key === "bottle" ? (
         <>
           <div className="package-heading">
             <div>
