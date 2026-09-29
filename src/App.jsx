@@ -641,10 +641,20 @@ function App() {
       const finalBalance = Number(wallet?.balance || 0) - amount + payout;
       const betReference = createReference("VIR");
 
-      await supabase
-        .from("wallets")
-        .update({ balance: finalBalance })
-        .eq("user_id", session.user.id);
+      const { error: walletError } = await supabase.rpc(
+        "apply_game_wallet_change",
+        {
+          p_amount: amount,
+          p_payout: payout,
+        }
+      );
+
+      if (walletError) {
+        throw new Error(
+          walletError.message ||
+            "Your wallet could not be updated. Create the apply_game_wallet_change RPC in Supabase."
+        );
+      }
 
       const { error: betError } = await supabase.from("bets").insert({
         user_id: session.user.id,
@@ -1584,15 +1594,6 @@ function App() {
           />
 
           <NavButton
-            active={page === "bets"}
-            icon="🎟️"
-            label="My Bets"
-            onClick={() =>
-              setPage("bets")
-            }
-          />
-
-          <NavButton
             active={page === "wallet"}
             icon="💰"
             label="Wallet"
@@ -1875,107 +1876,6 @@ function App() {
                 busy={busy}
               />
             )}
-
-          {/* BETS */}
-          {page === "bets" && (
-            <section className="page-section">
-              <PageTitle
-                eyebrow="BET HISTORY"
-                title="My Bets"
-                text="Review your placed selections."
-              />
-
-              {bets.length === 0 ? (
-                <div className="empty-card">
-                  <div className="empty-icon">
-                    🎟️
-                  </div>
-
-                  <h3>
-                    No bets yet
-                  </h3>
-
-                  <p>
-                    Your Instant Virtuals betting history
-                    will appear here when you
-                    play a virtual round.
-                  </p>
-
-                  <button
-                    className="btn btn-primary"
-                    onClick={() =>
-                      setPage("home")
-                    }
-                  >
-                    Go to Games
-                  </button>
-                </div>
-              ) : (
-                <div className="bet-history-grid">
-                  {bets.map((bet) => (
-                    <div
-                      className="history-card"
-                      key={bet.id}
-                    >
-                      <div className="history-top">
-                        <div>
-                          <span className="eyebrow">
-                            BET REFERENCE
-                          </span>
-
-                          <strong>
-                            #
-                            {String(
-                              bet.id
-                            ).slice(0, 8)}
-                          </strong>
-                        </div>
-
-                        <span className="status-pill">
-                          {String(
-                            bet.status ||
-                              "pending"
-                          ).toUpperCase()}
-                        </span>
-                      </div>
-
-                      <div className="history-stats">
-                        <Stat
-                          label="Stake"
-                          value={money(
-                            bet.stake
-                          )}
-                        />
-
-                        <Stat
-                          label="Combined odds"
-                          value={Number(
-                            bet.combined_odds ||
-                              0
-                          ).toFixed(2)}
-                        />
-
-                        <Stat
-                          label="Potential win"
-                          value={money(
-                            bet.potential_win
-                          )}
-                        />
-                      </div>
-
-                      {bet.created_at && (
-                        <div className="history-date">
-                          {fmtDate(
-                            bet.created_at
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
 
           {/* WALLET */}
           {page === "wallet" && (
@@ -2892,7 +2792,11 @@ function GameDetailPage({
                             : "—"}
                         </strong>
                       </div>
-                      <button className="btn btn-primary big-btn" disabled={busy}>
+                      <button
+                        className="btn btn-primary big-btn"
+                        type="submit"
+                        disabled={busy}
+                      >
                         {busy ? "Processing..." : "Place Virtual Bet"}
                       </button>
                     </form>
@@ -3146,6 +3050,10 @@ function AdminPanel({
   const [msg, setMsg] =
     useState("");
 
+  const [walletModal, setWalletModal] = useState(null);
+  const [walletAmount, setWalletAmount] = useState("");
+  const [walletDescription, setWalletDescription] = useState("");
+
   useEffect(() => {
     loadAdmin();
   }, []);
@@ -3201,57 +3109,58 @@ function AdminPanel({
     );
   }
 
+  function openWalletModal(user, direction) {
+    setWalletModal({ user, direction });
+    setWalletAmount("");
+    setWalletDescription("");
+    setError("");
+    setMsg("");
+  }
+
+  function closeWalletModal() {
+    if (busy) return;
+    setWalletModal(null);
+    setWalletAmount("");
+    setWalletDescription("");
+  }
+
   // =========================
   // ADMIN WALLET
   // =========================
-  async function adjustWallet(
-    direction
-  ) {
-    const value =
-      Number(amount);
+  async function adjustWallet(direction) {
+    const value = Number(walletAmount);
+    const target = walletModal?.user;
 
-    if (
-      !userId ||
-      !value ||
-      value <= 0
-    ) {
-      setError(
-        "Choose a user and enter a valid amount."
-      );
+    if (!target?.id || !value || value <= 0) {
+      setError("Choose a user and enter a valid amount.");
       return;
     }
 
     setBusy(true);
     setError("");
+    setMsg("");
 
     try {
-      const fn =
-        direction === "credit"
-          ? "admin_credit_wallet"
-          : "admin_debit_wallet";
+      const fn = direction === "credit"
+        ? "admin_credit_wallet"
+        : "admin_debit_wallet";
 
-      const { error: e } =
-        await supabase.rpc(fn, {
-          p_user_id: userId,
-          p_amount: value,
-          p_description: `Admin ${direction}`,
-        });
+      const { error: e } = await supabase.rpc(fn, {
+        p_user_id: target.id,
+        p_amount: value,
+        p_description: walletDescription.trim() || `Admin ${direction}`,
+      });
 
       if (e) throw e;
 
-      setAmount("");
-
-      setMsg(
-        `Wallet ${direction} successful.`
-      );
-
+      setMsg(`${money(value)} ${direction === "credit" ? "credited to" : "debited from"} ${target.full_name || target.email || "user"}.`);
+      setWalletModal(null);
+      setWalletAmount("");
+      setWalletDescription("");
       await loadAdmin();
       await onRefresh();
     } catch (e) {
-      setError(
-        e.message ||
-          "Wallet adjustment failed."
-      );
+      setError(e.message || "Wallet adjustment failed.");
     } finally {
       setBusy(false);
     }
@@ -3468,6 +3377,102 @@ function AdminPanel({
 
       </div>
 
+
+      {/* USER WALLET CREDIT / DEBIT */}
+      <div className="admin-card admin-wallet-controls">
+        <div className="admin-card-head">
+          <div>
+            <span className="eyebrow">USER WALLETS</span>
+            <h3>Credit & Debit Users</h3>
+          </div>
+          <span className="count-badge">{users.length} users</span>
+        </div>
+
+        {users.length === 0 ? (
+          <div className="admin-empty">No users returned.</div>
+        ) : (
+          <div className="admin-user-wallet-list">
+            {users.map((u) => {
+              const balance = Number(u.wallet_balance ?? u.balance ?? 0);
+              const name = u.full_name || u.name || u.phone || u.email || "User";
+              return (
+                <div className="admin-user-wallet-row" key={u.id}>
+                  <div className="admin-user-wallet-info">
+                    <strong>{name}</strong>
+                    <span>{u.email || u.phone || String(u.id).slice(0, 8)}</span>
+                  </div>
+                  <div className="admin-user-wallet-balance">
+                    <small>Wallet Balance</small>
+                    <strong>{money(balance)}</strong>
+                  </div>
+                  <div className="admin-user-wallet-actions">
+                    <button
+                      type="button"
+                      className="admin-credit-btn"
+                      disabled={busy}
+                      onClick={() => openWalletModal(u, "credit")}
+                    >
+                      + Credit
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-debit-btn"
+                      disabled={busy}
+                      onClick={() => openWalletModal(u, "debit")}
+                    >
+                      − Debit
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {walletModal && (
+        <div className="wallet-adjust-overlay" onClick={closeWalletModal}>
+          <div className="wallet-adjust-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-card-head">
+              <div>
+                <span className="eyebrow">ADMIN WALLET</span>
+                <h3>{walletModal.direction === "credit" ? "Credit User" : "Debit User"}</h3>
+                <p>{walletModal.user.full_name || walletModal.user.email || "Selected user"}</p>
+              </div>
+              <button type="button" className="btn btn-outline" onClick={closeWalletModal} disabled={busy}>Close</button>
+            </div>
+
+            <label>Amount (GHS)</label>
+            <input
+              className="field"
+              type="number"
+              min="1"
+              step="0.01"
+              placeholder="100"
+              value={walletAmount}
+              onChange={(e) => setWalletAmount(e.target.value)}
+            />
+
+            <label>Description (optional)</label>
+            <input
+              className="field"
+              type="text"
+              placeholder={`Admin ${walletModal.direction}`}
+              value={walletDescription}
+              onChange={(e) => setWalletDescription(e.target.value)}
+            />
+
+            <button
+              type="button"
+              className={`btn ${walletModal.direction === "credit" ? "btn-primary" : "btn-outline"} big-btn`}
+              disabled={busy}
+              onClick={() => adjustWallet(walletModal.direction)}
+            >
+              {busy ? "Processing..." : walletModal.direction === "credit" ? "Confirm Credit" : "Confirm Debit"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* WITHDRAWALS */}
       <div className="admin-card">
