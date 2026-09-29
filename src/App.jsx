@@ -1,6 +1,27 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createWorker } from "tesseract.js";
 import { supabase } from "./supabase";
+
+const sendWithdrawalSMS = async (requestId) => {
+  const { data, error } = await supabase.functions.invoke(
+    "send-withdrawal-sms",
+    {
+      body: {
+        request_id: requestId,
+      },
+    }
+  );
+
+  if (error) {
+    console.error("SMS error:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+
+  return data;
+};
+
 import "./App.css";
 
 const money = (n) =>
@@ -36,22 +57,64 @@ const LEAGUES = [
 ];
 
 const GAME_CATALOG = [
- { key: "casino", icon: "🪙", title: "COIN FLIP", subtitle: "Instant coin flip", description: "Flip the coin, choose Heads or Tails, and play from GHS 50.", tone: "blue" }, { key: "bottle", icon: "🍾", title: "FLIP THE BOTTLE", subtitle: "Quick bottle rounds", description: "Fast Flip the Bottle rounds with simple game play.", tone: "orange" },
-  { key: "football", icon: "⚽", title: "FOOTBALL", subtitle: "Virtual football", description: "Virtual football packages with named teams and match rounds.", tone: "blue" },
+  {
+    key: "virtuals",
+    icon: "🎰",
+    title: "INSTANT VIRTUALS",
+    subtitle: "Instant virtual football",
+    description:
+      "Fast virtual football rounds with live-style teams, odds and instant results.",
+    tone: "blue",
+  },
+  {
+    key: "aviator",
+    icon: "✈️",
+    title: "AVIATOR",
+    subtitle: "Fast multiplier rounds",
+    description:
+      "Place your stake, watch the multiplier rise and see the round result instantly.",
+    tone: "orange",
+  },
+  {
+    key: "coin",
+    icon: "🪙",
+    title: "FLIP THE COIN",
+    subtitle: "Instant coin flip",
+    description:
+      "Choose Heads or Tails and play from GHS 50 with the existing secure coin-flip round.",
+    tone: "green",
+  },
 ];
 
-const PACKAGES = [
-  { price: 300, predictions: 1, icon: "⚡" },
-  { price: 400, predictions: 2, icon: "🔥" },
-  { price: 500, predictions: 3, icon: "💎" },
+const VIRTUAL_PACKAGES = [
+  { id: "starter", name: "Starter Prediction", price: 200, screenshots: 1, description: "1 virtual round package" },
+  { id: "pro", name: "Pro Prediction", price: 400, screenshots: 2, description: "2 virtual round package" },
+  { id: "vip", name: "VIP Prediction", price: 600, screenshots: 3, description: "3 virtual round package" },
 ];
 
+const AVIATOR_PACKAGES = [
+  { id: "aviator-400", name: "Aviator Starter", price: 400, screenshots: 1, description: "Starter Aviator package" },
+  { id: "aviator-500", name: "Aviator Pro", price: 500, screenshots: 2, description: "Pro Aviator package" },
+  { id: "aviator-600", name: "Aviator VIP", price: 600, screenshots: 3, description: "VIP Aviator package" },
+];
+
+const VIRTUAL_MATCHES = [
+  { id: "m1", home: "Manchester City", away: "Liverpool", time: "12:00", league: "Virtual Premier League", odds: { home: 1.65, draw: 3.8, away: 4.4 } },
+  { id: "m2", home: "Arsenal", away: "Chelsea", time: "12:15", league: "Virtual Premier League", odds: { home: 2.05, draw: 3.35, away: 3.1 } },
+  { id: "m3", home: "Real Madrid", away: "Barcelona", time: "12:30", league: "Virtual La Liga", odds: { home: 1.85, draw: 3.6, away: 3.65 } },
+  { id: "m4", home: "Bayern Munich", away: "Borussia Dortmund", time: "12:45", league: "Virtual Bundesliga", odds: { home: 1.72, draw: 3.9, away: 4.0 } },
+  { id: "m5", home: "PSG", away: "Marseille", time: "13:00", league: "Virtual Ligue 1", odds: { home: 1.55, draw: 4.1, away: 5.0 } },
+  { id: "m6", home: "Inter Milan", away: "AC Milan", time: "13:15", league: "Virtual Serie A", odds: { home: 2.2, draw: 3.25, away: 2.95 } },
+];
+
+function createReference(prefix = "CSH") {
+  return `${prefix}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
 
 function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [wallet, setWallet] = useState(null);
-  const [matches, setMatches] = useState([]);
   const [bets, setBets] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [betSlip, setBetSlip] = useState([]);
@@ -63,9 +126,18 @@ function App() {
   const [error, setError] = useState("");
   const [sportsLoading, setSportsLoading] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
-  const [predictionGame, setPredictionGame] = useState(null);
-  const [selectedPackage, setSelectedPackage] = useState(null);
-  const [predictionActivity, setPredictionActivity] = useState([]);
+  const [virtualSelections, setVirtualSelections] = useState([]);
+  const [virtualStake, setVirtualStake] = useState("");
+  const [virtualBetAnimation, setVirtualBetAnimation] = useState(false);
+  const [virtualBetAnimationSeconds, setVirtualBetAnimationSeconds] = useState(10);
+  const [aviatorStake, setAviatorStake] = useState("");
+  const [aviatorMultiplier, setAviatorMultiplier] = useState(null);
+
+  // =========================
+  // WITHDRAWAL NOTIFICATIONS
+  // =========================
+  const [notifications, setNotifications] = useState([]);
+  const [withdrawalNotification, setWithdrawalNotification] = useState(null);
 
   const [authMode, setAuthMode] = useState("login");
   const [name, setName] = useState("");
@@ -80,41 +152,59 @@ function App() {
   const [withdrawName, setWithdrawName] = useState("");
   const [withdrawDestination, setWithdrawDestination] = useState("");
   const [manualWithdrawals, setManualWithdrawals] = useState([]);
-  const isAdmin = profile?.role === "admin" && profile?.is_active !== false;
+
+  const isAdmin =
+    profile?.role === "admin" && profile?.is_active !== false;
 
   const combinedOdds = useMemo(
-    () => betSlip.reduce((total, item) => total * Number(item.odd || 1), 1),
+    () =>
+      betSlip.reduce(
+        (total, item) => total * Number(item.odd || 1),
+        1
+      ),
     [betSlip]
   );
 
   const potentialWin = Number(stake || 0) * combinedOdds;
 
+  // =========================
+  // AUTH INITIALIZATION
+  // =========================
   useEffect(() => {
     let mounted = true;
 
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
+
       setSession(data.session || null);
-      if (!data.session) setLoading(false);
+
+      if (!data.session) {
+        setLoading(false);
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (!mounted) return;
-      setSession(nextSession || null);
+    } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        if (!mounted) return;
 
-      if (!nextSession) {
-        setProfile(null);
-        setWallet(null);
-        setBets([]);
-        setTransactions([]);
-        setManualWithdrawals([]);
-        setBetSlip([]);
-        setPage("home");
-        setLoading(false);
+        setSession(nextSession || null);
+
+        if (!nextSession) {
+          setProfile(null);
+          setWallet(null);
+          setBets([]);
+          setTransactions([]);
+          setManualWithdrawals([]);
+          setNotifications([]);
+          setWithdrawalNotification(null);
+          setBetSlip([]);
+          setPage("home");
+          setLoading(false);
+        }
       }
-    });
+    );
 
     return () => {
       mounted = false;
@@ -122,9 +212,69 @@ function App() {
     };
   }, []);
 
+  // =========================
+  // LOAD ACCOUNT
+  // =========================
   useEffect(() => {
-    if (session) loadAll();
+    if (session) {
+      loadAll();
+    }
   }, [session]);
+
+  // =========================
+  // CHECK NOTIFICATIONS
+  // =========================
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    let cancelled = false;
+
+    async function checkNotifications() {
+      try {
+        const { data, error: notificationError } =
+          await supabase
+            .from("user_notifications")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .eq("is_read", false)
+            .order("created_at", { ascending: false })
+            .limit(10);
+
+        if (notificationError) {
+          console.error(
+            "Notification check error:",
+            notificationError
+          );
+          return;
+        }
+
+        if (!cancelled) {
+          const rows = data || [];
+          setNotifications(rows);
+
+          if (rows.length > 0) {
+            setWithdrawalNotification(rows[0]);
+          }
+        }
+      } catch (e) {
+        console.error("Notification check error:", e);
+      }
+    }
+
+    checkNotifications();
+
+    // Check periodically so a notification appears
+    // even if the user is already logged in.
+    const interval = setInterval(
+      checkNotifications,
+      5000
+    );
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [session?.user?.id]);
 
   async function loadAll() {
     setLoading(true);
@@ -134,132 +284,187 @@ function App() {
       await Promise.all([
         loadProfile(),
         loadWallet(),
-        loadMatches(),
         loadUserData(),
       ]);
     } catch (e) {
       console.error(e);
-      setError(e?.message || "Some account data could not be loaded.");
+      setError(
+        e?.message ||
+          "Some account data could not be loaded."
+      );
     } finally {
       setLoading(false);
     }
   }
 
   async function loadProfile() {
-    const { data, error: e } = await supabase.rpc("get_my_profile");
+    const { data, error: e } =
+      await supabase.rpc("get_my_profile");
 
     if (!e) {
-      setProfile(Array.isArray(data) ? data[0] || null : data || null);
+      setProfile(
+        Array.isArray(data)
+          ? data[0] || null
+          : data || null
+      );
       return;
     }
 
-    const { data: fallback, error: fe } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .maybeSingle();
+    const { data: fallback, error: fe } =
+      await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .maybeSingle();
 
     if (fe) throw fe;
+
     setProfile(fallback);
   }
 
   async function loadWallet() {
-    const { data, error: e } = await supabase.rpc("get_my_wallet");
+    const { data, error: e } =
+      await supabase.rpc("get_my_wallet");
 
     if (!e) {
-      setWallet(Array.isArray(data) ? data[0] || null : data || null);
+      setWallet(
+        Array.isArray(data)
+          ? data[0] || null
+          : data || null
+      );
       return;
     }
 
-    const { data: fallback, error: fe } = await supabase
-      .from("wallets")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .maybeSingle();
+    const { data: fallback, error: fe } =
+      await supabase
+        .from("wallets")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
 
     if (fe) throw fe;
+
     setWallet(fallback);
   }
 
-  async function loadMatches() {
-    const { data: rows, error: e } = await supabase
-      .from("matches")
-      .select("*")
-      .eq("is_active", true)
-      .order("start_time", { ascending: true });
-
-    if (!e) {
-      setMatches(await attachOdds(rows || []));
-      return;
-    }
-
-    const fallback = await supabase
-      .from("matches")
-      .select("*")
-      .order("start_time", { ascending: true });
-
-    if (fallback.error) {
-      console.error("Matches:", e);
-      setMatches([]);
-      return;
-    }
-
-    setMatches(await attachOdds(fallback.data || []));
-  }
-
-  async function attachOdds(rows) {
-    if (!rows.length) return [];
-
-    const ids = rows.map((m) => m.id);
-    const { data: odds, error: oddsError } = await supabase
-      .from("match_odds")
-      .select("*")
-      .in("match_id", ids)
-      .eq("is_active", true)
-      .order("market", { ascending: true });
-
-    if (oddsError) throw oddsError;
-
-    const map = {};
-    for (const odd of odds || []) {
-      if (!map[odd.match_id]) map[odd.match_id] = [];
-      map[odd.match_id].push(odd);
-    }
-
-    return rows.map((m) => ({
-      ...m,
-      match_odds: map[m.id] || [],
-    }));
-  }
-
   async function loadUserData() {
-    const [betsResult, txResult, withdrawalsResult] = await Promise.all([
-      // Do NOT order by created_at here: the current bets table does not
-      // contain that column.
+    const [
+      betsResult,
+      txResult,
+      withdrawalsResult,
+      notificationsResult,
+    ] = await Promise.all([
       supabase
         .from("bets")
         .select("*")
         .eq("user_id", session.user.id),
+
       supabase
         .from("transactions")
         .select("*")
         .eq("user_id", session.user.id)
-        .order("created_at", { ascending: false }),
-      supabase.rpc("get_my_manual_withdrawals"),
+        .order("created_at", {
+          ascending: false,
+        }),
+
+      supabase.rpc(
+        "get_my_manual_withdrawals"
+      ),
+
+      supabase
+        .from("user_notifications")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .eq("is_read", false)
+        .order("created_at", {
+          ascending: false,
+        })
+        .limit(10),
     ]);
 
-    if (betsResult.error) throw betsResult.error;
-    if (txResult.error) throw txResult.error;
-    if (withdrawalsResult.error) throw withdrawalsResult.error;
+    if (betsResult.error)
+      throw betsResult.error;
+
+    if (txResult.error)
+      throw txResult.error;
+
+    if (withdrawalsResult.error)
+      throw withdrawalsResult.error;
+
+    if (notificationsResult.error) {
+      console.error(
+        "Notification loading error:",
+        notificationsResult.error
+      );
+    }
 
     setBets(betsResult.data || []);
     setTransactions(txResult.data || []);
-    setManualWithdrawals(withdrawalsResult.data || []);
+    setManualWithdrawals(
+      withdrawalsResult.data || []
+    );
+
+    const unreadNotifications =
+      notificationsResult.data || [];
+
+    setNotifications(unreadNotifications);
+
+    if (unreadNotifications.length > 0) {
+      setWithdrawalNotification(
+        unreadNotifications[0]
+      );
+    }
+  }
+
+  // =========================
+  // CLOSE NOTIFICATION
+  // =========================
+  async function closeWithdrawalNotification() {
+    const notification =
+      withdrawalNotification;
+
+    setWithdrawalNotification(null);
+
+    if (!notification?.id) return;
+
+    try {
+      const { error: updateError } =
+        await supabase
+          .from("user_notifications")
+          .update({
+            is_read: true,
+          })
+          .eq("id", notification.id)
+          .eq("user_id", session.user.id);
+
+      if (updateError) {
+        console.error(
+          "Notification read error:",
+          updateError
+        );
+        return;
+      }
+
+      setNotifications((old) =>
+        old.filter(
+          (item) =>
+            item.id !== notification.id
+        )
+      );
+    } catch (e) {
+      console.error(
+        "Notification read error:",
+        e
+      );
+    }
   }
 
   function flash(text) {
     setMessage(text);
-    setTimeout(() => setMessage(""), 3500);
+
+    setTimeout(() => {
+      setMessage("");
+    }, 3500);
   }
 
   function clearError() {
@@ -267,7 +472,10 @@ function App() {
   }
 
   function formatPhone(value) {
-    let cleaned = value.replace(/[^\d+]/g, "");
+    let cleaned = value.replace(
+      /[^\d+]/g,
+      ""
+    );
 
     if (cleaned.startsWith("+233")) {
       return cleaned.slice(0, 13);
@@ -277,51 +485,82 @@ function App() {
       return `+${cleaned.slice(0, 12)}`;
     }
 
-    return cleaned.replace(/\D/g, "").slice(0, 10);
+    return cleaned
+      .replace(/\D/g, "")
+      .slice(0, 10);
   }
 
+  // =========================
+  // AUTH
+  // =========================
   async function handleAuth(e) {
     e.preventDefault();
+
     setBusy(true);
     clearError();
     setMessage("");
 
     try {
       if (authMode === "signup") {
-        if (!name.trim()) throw new Error("Enter your full name.");
-        if (!phone.trim()) throw new Error("Enter your Ghana phone number.");
-        if (password.length < 6)
-          throw new Error("Password must be at least 6 characters.");
+        if (!name.trim()) {
+          throw new Error(
+            "Enter your full name."
+          );
+        }
 
-        const { data, error: e1 } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            data: {
-              full_name: name.trim(),
-              phone: phone.trim(),
+        if (!phone.trim()) {
+          throw new Error(
+            "Enter your Ghana phone number."
+          );
+        }
+
+        if (password.length < 6) {
+          throw new Error(
+            "Password must be at least 6 characters."
+          );
+        }
+
+        const { data, error: e1 } =
+          await supabase.auth.signUp({
+            email: email.trim(),
+            password,
+            options: {
+              data: {
+                full_name: name.trim(),
+                phone: phone.trim(),
+              },
             },
-          },
-        });
+          });
 
         if (e1) throw e1;
 
         if (!data.session) {
-          flash("Account created. Check your email to confirm your account.");
+          flash(
+            "Account created. Check your email to confirm your account."
+          );
         } else {
-          flash("Account created successfully.");
+          flash(
+            "Account created successfully."
+          );
         }
       } else {
-        const { error: e1 } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+        const { error: e1 } =
+          await supabase.auth.signInWithPassword(
+            {
+              email: email.trim(),
+              password,
+            }
+          );
 
         if (e1) throw e1;
+
         flash("Welcome back.");
       }
     } catch (e1) {
-      setError(e1.message || "Authentication failed.");
+      setError(
+        e1.message ||
+          "Authentication failed."
+      );
     } finally {
       setBusy(false);
     }
@@ -336,87 +575,244 @@ function App() {
     setPage("game");
   }
 
-  async function logPredictionActivity(activityType, game = null, pkg = null) {
-    if (!session?.user?.id) return;
-
-    try {
-      const { error: activityError } = await supabase
-        .from("prediction_activity")
-        .insert({
-          user_id: session.user.id,
-          activity_type: activityType,
-          game: game?.title || game?.key || null,
-          package_price: pkg?.price ? Number(pkg.price) : null,
-          prediction_count: pkg?.predictions ? Number(pkg.predictions) : null,
-        });
-
-      if (activityError) console.error("Prediction activity log error:", activityError);
-    } catch (activityError) {
-      console.error("Prediction activity log error:", activityError);
-    }
-  }
-
-  function choosePackage(price) {
-    const pkg = PACKAGES.find((item) => item.price === price);
-    setSelectedPackage(pkg || null);
-    setDepositAmount(String(price));
+  // =========================
+  // GAME PACKAGES
+  // =========================
+  function chooseVirtualPackage(price) {
+    const pkg = VIRTUAL_PACKAGES.find((item) => item.price === Number(price));
+    if (!pkg) return;
+    setDepositAmount(String(pkg.price));
     setPage("wallet");
-    if (pkg) logPredictionActivity("package_selected", selectedGame, pkg);
-    flash(`GHS ${price} package selected. The amount has been added to Deposit.`);
+    flash(`${pkg.name} selected. Deposit GHS ${pkg.price} to unlock it.`);
   }
 
-  function openSurePrediction(game) {
-    if (!selectedPackage) {
-      setError("Choose a Sure Prediction package first.");
-      return;
+  function chooseAviatorPackage(price) {
+    const pkg = AVIATOR_PACKAGES.find((item) => item.price === Number(price));
+    if (!pkg) return;
+    setDepositAmount(String(pkg.price));
+    setPage("wallet");
+    flash(`${pkg.name} selected. Deposit GHS ${pkg.price} to unlock it.`);
+  }
+
+  function toggleVirtualSelection(match, market) {
+    const key = `${match.id}-${market}`;
+    setVirtualSelections((current) => {
+      const existing = current.find((item) => item.key === key);
+      if (existing) {
+        return current.filter((item) => item.key !== key);
+      }
+      const withoutSameMatch = current.filter((item) => item.matchId !== match.id);
+      return [
+        ...withoutSameMatch,
+        {
+          key,
+          matchId: match.id,
+          home: match.home,
+          away: match.away,
+          time: match.time,
+          league: match.league,
+          market,
+          odd: Number(match.odds[market]),
+        },
+      ];
+    });
+  }
+
+  const virtualCombinedOdds = useMemo(
+    () => virtualSelections.reduce((total, item) => total * Number(item.odd || 1), 1),
+    [virtualSelections]
+  );
+
+  async function placeVirtualBet(e) {
+    e.preventDefault();
+    clearError();
+    setMessage("");
+
+    const amount = Number(virtualStake);
+    if (!virtualSelections.length) return setError("Select at least one virtual market.");
+    if (!Number.isFinite(amount) || amount <= 0) return setError("Enter a valid stake.");
+    if (amount > Number(wallet?.balance || 0)) return setError("Insufficient wallet balance.");
+
+    setBusy(true);
+    try {
+      const potentialWin = amount * virtualCombinedOdds;
+      const won = Math.random() >= 0.5;
+      const payout = won ? potentialWin : 0;
+      const finalBalance = Number(wallet?.balance || 0) - amount + payout;
+      const betReference = createReference("VIR");
+
+      await supabase
+        .from("wallets")
+        .update({ balance: finalBalance })
+        .eq("user_id", session.user.id);
+
+      const { error: betError } = await supabase.from("bets").insert({
+        user_id: session.user.id,
+        bet_reference: betReference,
+        selections: virtualSelections,
+        stake: amount,
+        odds: virtualCombinedOdds,
+        potential_win: potentialWin,
+        result: won ? "WON" : "LOST",
+        payout,
+      });
+      if (betError) console.warn("Virtual bet database insert:", betError);
+
+      const { error: txError } = await supabase.from("transactions").insert({
+        user_id: session.user.id,
+        type: "bet",
+        amount,
+        description: won
+          ? `Instant Virtuals bet won — payout ${money(payout)}`
+          : "Instant Virtuals bet placed — lost",
+        reference: betReference,
+      });
+      if (txError) console.warn("Virtual bet transaction:", txError);
+
+      setVirtualSelections([]);
+      setVirtualStake("");
+      setVirtualBetAnimationSeconds(10);
+      setVirtualBetAnimation(true);
+
+      await new Promise((resolve) => {
+        let seconds = 10;
+        const timer = setInterval(() => {
+          seconds -= 1;
+          setVirtualBetAnimationSeconds(seconds);
+          if (seconds <= 0) {
+            clearInterval(timer);
+            resolve();
+          }
+        }, 1000);
+      });
+
+      setVirtualBetAnimation(false);
+      await Promise.all([loadWallet(), loadUserData()]);
+      setMessage(
+        won
+          ? `Instant Virtuals won! Payout: ${money(payout)}`
+          : "Instant Virtuals round settled as lost."
+      );
+    } catch (e) {
+      setVirtualBetAnimation(false);
+      setError(e?.message || "Unable to complete the virtual round.");
+    } finally {
+      setBusy(false);
     }
-    const balance = Number(wallet?.balance || 0);
-    if (balance < Number(selectedPackage.price)) {
-      setDepositAmount(String(selectedPackage.price));
-      setPage("wallet");
-      flash(`You need GHS ${selectedPackage.price} in your wallet before submitting this package.`);
-      return;
+  }
+
+  async function playAviator(e) {
+    e.preventDefault();
+    clearError();
+    setMessage("");
+    setAviatorMultiplier(null);
+
+    const amount = Number(aviatorStake);
+    if (!Number.isFinite(amount) || amount <= 0) return setError("Enter your Aviator stake.");
+    if (amount > Number(wallet?.balance || 0)) return setError("Insufficient wallet balance.");
+
+    setBusy(true);
+    try {
+      const multiplier = Number((1 + Math.random() * 9).toFixed(2));
+      const crashed = Math.random() < 0.35;
+      const finalMultiplier = crashed ? 1 : multiplier;
+      const payout = crashed ? 0 : amount * finalMultiplier;
+      const finalBalance = Number(wallet?.balance || 0) - amount + payout;
+      const reference = createReference("AVI");
+
+      const { error: walletError } = await supabase
+        .from("wallets")
+        .update({ balance: finalBalance })
+        .eq("user_id", session.user.id);
+      if (walletError) throw walletError;
+
+      const { error: txError } = await supabase.from("transactions").insert({
+        user_id: session.user.id,
+        type: "aviator",
+        amount,
+        description: crashed ? "Aviator crash" : `Aviator ${finalMultiplier}x — payout ${money(payout)}`,
+        reference,
+      });
+      if (txError) console.warn("Aviator transaction:", txError);
+
+      setAviatorMultiplier(crashed ? "CRASHED" : `${finalMultiplier}x`);
+      setAviatorStake("");
+      await loadWallet();
+      await loadUserData();
+      setMessage(
+        crashed
+          ? "Aviator crashed. The stake was lost."
+          : `Aviator cashed at ${finalMultiplier}x — payout ${money(payout)}.`
+      );
+    } catch (e) {
+      setError(e?.message || "Unable to play Aviator.");
+    } finally {
+      setBusy(false);
     }
-    setPredictionGame(game);
-    logPredictionActivity("prediction_viewed", game, selectedPackage);
   }
 
-  function confirmSurePrediction() {
-    logPredictionActivity("prediction_submitted", predictionGame, selectedPackage);
-    setPredictionGame(null);
-    flash("Sure Prediction completed. Your package was charged and the prediction result was revealed.");
-  }
+  // =========================
+  // BET SLIP
 
+  // =========================
   function addToSlip(match, odd) {
     const item = {
       matchId: match.id,
       homeTeam: match.home_team,
       awayTeam: match.away_team,
       startTime: match.start_time,
-      market: odd.market || "Market",
-      selectionKey: odd.selection,
-      selection: odd.selection,
+      market:
+        odd.market || "Market",
+      selectionKey:
+        odd.selection,
+      selection:
+        odd.selection,
       odd: Number(odd.odd),
     };
 
-    if (!Number.isFinite(item.odd) || item.odd <= 0) {
-      setError("This odd is not available.");
+    if (
+      !Number.isFinite(item.odd) ||
+      item.odd <= 0
+    ) {
+      setError(
+        "This odd is not available."
+      );
       return;
     }
 
     setBetSlip((old) => {
-      const withoutSameMatchMarket = old.filter(
-        (x) => !(x.matchId === item.matchId && x.market === item.market)
-      );
-      return [...withoutSameMatchMarket, item];
+      const withoutSameMatchMarket =
+        old.filter(
+          (x) =>
+            !(
+              x.matchId === item.matchId &&
+              x.market === item.market
+            )
+        );
+
+      return [
+        ...withoutSameMatchMarket,
+        item,
+      ];
     });
 
-    flash(`${match.home_team} vs ${match.away_team}: ${odd.selection} added`);
+    flash(
+      `${match.home_team} vs ${match.away_team}: ${odd.selection} added`
+    );
   }
 
-  function removeFromSlip(matchId, market) {
+  function removeFromSlip(
+    matchId,
+    market
+  ) {
     setBetSlip((old) =>
-      old.filter((x) => !(x.matchId === matchId && x.market === market))
+      old.filter(
+        (x) =>
+          !(
+            x.matchId === matchId &&
+            x.market === market
+          )
+      )
     );
   }
 
@@ -425,33 +821,69 @@ function App() {
 
     const amount = Number(stake);
 
-    if (!session) return setError("Please log in first.");
-    if (!betSlip.length) return setError("Select at least one odd.");
-    if (!Number.isFinite(amount) || amount <= 0)
-      return setError("Enter a valid stake.");
-    if (wallet && amount > Number(wallet.balance))
-      return setError("Insufficient wallet balance.");
+    if (!session) {
+      return setError(
+        "Please log in first."
+      );
+    }
+
+    if (!betSlip.length) {
+      return setError(
+        "Select at least one odd."
+      );
+    }
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      return setError(
+        "Enter a valid stake."
+      );
+    }
+
+    if (
+      wallet &&
+      amount > Number(wallet.balance)
+    ) {
+      return setError(
+        "Insufficient wallet balance."
+      );
+    }
 
     setBusy(true);
 
     try {
-      const selections = betSlip.map((x) => ({
-        match_id: x.matchId,
-        market: x.market,
-        selection: x.selectionKey,
-      }));
+      const selections =
+        betSlip.map((x) => ({
+          match_id: x.matchId,
+          market: x.market,
+          selection: x.selectionKey,
+        }));
 
-      const { error: e } = await supabase.rpc("place_bet", {
-        p_stake: amount,
-        p_selections: selections,
-      });
+      const { error: e } =
+        await supabase.rpc(
+          "place_bet",
+          {
+            p_stake: amount,
+            p_selections:
+              selections,
+          },
+        );
 
       if (e) throw e;
 
       setStake("");
       setBetSlip([]);
-      await Promise.all([loadWallet(), loadUserData()]);
-      flash("Bet placed successfully.");
+
+      await Promise.all([
+        loadWallet(),
+        loadUserData(),
+      ]);
+
+      flash(
+        "Bet placed successfully."
+      );
     } catch (e) {
       setError(
         e.message ||
@@ -462,78 +894,160 @@ function App() {
     }
   }
 
+  // =========================
+  // DEPOSIT
+  // =========================
   async function handleRealDeposit(e) {
     e.preventDefault();
+
     clearError();
 
-    const amount = Number(depositAmount);
-    const reference = depositReference.trim();
+    const amount = Number(
+      depositAmount
+    );
 
-    if (!session?.user) return setError("Please log in before making a deposit.");
-    if (!Number.isFinite(amount) || amount <= 0) return setError("Enter a valid deposit amount.");
-    if (amount < 1) return setError("Minimum deposit is GHS 1.00.");
-    if (!reference) return setError("Enter the MoMo transaction/reference number after payment.");
+    const reference =
+      depositReference.trim();
+
+    if (!session?.user) {
+      return setError(
+        "Please log in before making a deposit."
+      );
+    }
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      return setError(
+        "Enter a valid deposit amount."
+      );
+    }
+
+    if (amount < 1) {
+      return setError(
+        "Minimum deposit is GHS 1.00."
+      );
+    }
+
+    if (!reference) {
+      return setError(
+        "Enter the MoMo transaction/reference number after payment."
+      );
+    }
 
     setBusy(true);
     clearError();
 
     try {
-      const { error: e1 } = await supabase.rpc("request_deposit", {
-        p_amount: amount,
-        p_payment_method: "MTN Mobile Money",
-        p_payment_reference: reference,
-      });
+      const { error: e1 } =
+        await supabase.rpc(
+          "request_deposit",
+          {
+            p_amount: amount,
+            p_payment_method:
+              "MTN Mobile Money",
+            p_payment_reference:
+              reference,
+          }
+        );
 
       if (e1) throw e1;
 
       setDepositAmount("");
       setDepositReference("");
+
       await loadUserData();
-      flash("Deposit request submitted. Your wallet will be credited after the payment is verified.");
+
+      flash(
+        "Deposit request submitted. Your wallet will be credited after the payment is verified."
+      );
     } catch (e1) {
-      console.error("Manual deposit error:", e1);
-      setError(e1?.message || "Deposit request failed.");
+      console.error(
+        "Manual deposit error:",
+        e1
+      );
+
+      setError(
+        e1?.message ||
+          "Deposit request failed."
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  // =========================
+  // WITHDRAWAL
+  // =========================
   async function requestWithdrawal(e) {
     e.preventDefault();
+
     clearError();
 
-    const amount = Number(withdrawAmount);
-    const phoneValue = withdrawDestination.trim();
-    const recipientName = withdrawName.trim();
+    const amount = Number(
+      withdrawAmount
+    );
 
-    if (!amount || amount <= 0)
-      return setError("Enter a valid withdrawal amount.");
+    const phoneValue =
+      withdrawDestination.trim();
 
-    if (amount < 10)
-      return setError("Minimum withdrawal is GHS 10.00.");
+    const recipientName =
+      withdrawName.trim();
 
-    if (!recipientName)
-      return setError("Enter the name registered on the MoMo account.");
+    if (!amount || amount <= 0) {
+      return setError(
+        "Enter a valid withdrawal amount."
+      );
+    }
 
-    if (!/^0\d{9}$/.test(phoneValue))
-      return setError("Enter a valid Ghana mobile number, e.g. 0551234567.");
+    if (amount < 10) {
+      return setError(
+        "Minimum withdrawal is GHS 10.00."
+      );
+    }
 
-    if (Number(wallet?.balance || 0) < amount)
-      return setError("Insufficient wallet balance.");
+    if (!recipientName) {
+      return setError(
+        "Enter the name registered on the MoMo account."
+      );
+    }
+
+    if (!/^0\d{9}$/.test(phoneValue)) {
+      return setError(
+        "Enter a valid Ghana mobile number, e.g. 0551234567."
+      );
+    }
+
+    if (
+      Number(wallet?.balance || 0) <
+      amount
+    ) {
+      return setError(
+        "Insufficient wallet balance."
+      );
+    }
 
     setBusy(true);
-    setMessage("Submitting your withdrawal request...");
+
+    setMessage(
+      "Submitting your withdrawal request..."
+    );
 
     try {
-      const { error: e1 } = await supabase.rpc(
-        "request_manual_withdrawal",
-        {
-          p_amount: amount,
-          p_provider: withdrawProvider,
-          p_account_name: recipientName,
-          p_phone: phoneValue,
-        }
-      );
+      const { error: e1 } =
+        await supabase.rpc(
+          "request_manual_withdrawal",
+          {
+            p_amount: amount,
+            p_provider:
+              withdrawProvider,
+            p_account_name:
+              recipientName,
+            p_phone:
+              phoneValue,
+          }
+        );
 
       if (e1) throw e1;
 
@@ -541,54 +1055,52 @@ function App() {
       setWithdrawDestination("");
       setWithdrawName("");
 
-      await Promise.all([loadWallet(), loadUserData()]);
+      await Promise.all([
+        loadWallet(),
+        loadUserData(),
+      ]);
 
       setMessage(
         "Withdrawal request submitted. Your balance is held while the request is processed."
       );
     } catch (e1) {
-      console.error("Manual withdrawal error:", e1);
-      setError(e1?.message || "Withdrawal request failed.");
+      console.error(
+        "Manual withdrawal error:",
+        e1
+      );
+
+      setError(
+        e1?.message ||
+          "Withdrawal request failed."
+      );
+
       setMessage("");
     } finally {
       setBusy(false);
     }
   }
 
-  async function refreshSportsMatches() {
-    setSportsLoading(true);
-    try {
-      await loadMatches();
-      flash("Match list refreshed.");
-    } catch (e) {
-      setError(e?.message || "Unable to refresh matches.");
-    } finally {
-      setSportsLoading(false);
-    }
-  }
 
-  const marketGroups = (odds) => {
-    const groups = {};
-    for (const o of odds || []) {
-      const key = o.market || "Other";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(o);
-    }
-    return groups;
-  };
-
-  const featuredMatches = matches.slice(0, 3);
-  const upcomingMatches = matches.slice(0, 8);
-
+  // =========================
+  // LOGIN / SIGNUP PAGE
+  // =========================
   if (!session) {
     return (
       <div className="csh-app auth-page">
         <header className="topbar">
           <div className="brand-wrap">
-            <div className="brand-mark">CS</div>
+            <div className="brand-mark">
+              CS
+            </div>
+
             <div>
-              <div className="brand">CLASSIC SPORTY HACKS</div>
-              <div className="brand-sub">Games • Predictions • Wallet</div>
+              <div className="brand">
+                CLASSIC SPORTY HACKS
+              </div>
+
+              <div className="brand-sub">
+                Games • Wallet
+              </div>
             </div>
           </div>
         </header>
@@ -599,67 +1111,110 @@ function App() {
 
           <section className="auth-card">
             <div className="auth-badge">
-              {authMode === "login" ? "WELCOME BACK" : "JOIN CLASSIC SPORTY"}
+              {authMode === "login"
+                ? "WELCOME BACK"
+                : "JOIN CLASSIC SPORTY"}
             </div>
 
             <h1>
               {authMode === "login"
-                ? "Your football hub."
+                ? "Your games hub."
                 : "Create your account."}
             </h1>
 
             <p className="muted">
               {authMode === "login"
-                ? "Log in to manage your wallet, bets and football selections."
-                : "Sign up and get access to matches, odds, wallet and betting tools."}
+                ? "Log in to manage your wallet and instant games."
+                : "Sign up and get access to instant games, wallet and betting tools."}
             </p>
 
-            {error && <div className="alert error">{error}</div>}
-            {message && <div className="alert success">{message}</div>}
+            {error && (
+              <div className="alert error">
+                {error}
+              </div>
+            )}
 
-            <form onSubmit={handleAuth} className="auth-form">
+            {message && (
+              <div className="alert success">
+                {message}
+              </div>
+            )}
+
+            <form
+              onSubmit={handleAuth}
+              className="auth-form"
+            >
               {authMode === "signup" && (
                 <>
                   <label>Full name</label>
+
                   <input
                     className="field"
                     placeholder="Your full name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) =>
+                      setName(
+                        e.target.value
+                      )
+                    }
                   />
 
-                  <label>Ghana phone number</label>
+                  <label>
+                    Ghana phone number
+                  </label>
+
                   <input
                     className="field"
                     type="tel"
                     placeholder="0551234567"
                     value={phone}
-                    onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    onChange={(e) =>
+                      setPhone(
+                        formatPhone(
+                          e.target.value
+                        )
+                      )
+                    }
                   />
                 </>
               )}
 
-              <label>Email address</label>
+              <label>
+                Email address
+              </label>
+
               <input
                 className="field"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) =>
+                  setEmail(
+                    e.target.value
+                  )
+                }
                 required
               />
 
               <label>Password</label>
+
               <input
                 className="field"
                 type="password"
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) =>
+                  setPassword(
+                    e.target.value
+                  )
+                }
                 required
               />
 
-              <button className="btn btn-primary big-btn" disabled={busy}>
+              <button
+                className="btn btn-primary big-btn"
+                disabled={busy}
+              >
                 {busy
                   ? "Please wait..."
                   : authMode === "login"
@@ -672,7 +1227,12 @@ function App() {
               className="switch-auth"
               onClick={() => {
                 clearError();
-                setAuthMode(authMode === "login" ? "signup" : "login");
+
+                setAuthMode(
+                  authMode === "login"
+                    ? "signup"
+                    : "login"
+                );
               }}
             >
               {authMode === "login"
@@ -685,25 +1245,254 @@ function App() {
     );
   }
 
+  // =========================
+  // LOADING
+  // =========================
   if (loading) {
     return (
       <div className="loading-screen">
-        <div className="loading-logo">CS</div>
-        <strong>Loading Classic Sporty Hacks...</strong>
-        <span>Preparing your football dashboard</span>
+        <div className="loading-logo">
+          CS
+        </div>
+
+        <strong>
+          Loading Classic Sporty Hacks...
+        </strong>
+
+        <span>
+          Preparing your football dashboard
+        </span>
       </div>
     );
   }
 
   return (
     <div className="csh-app">
+
+      {/* =================================
+          WITHDRAWAL PAID NOTIFICATION
+          ================================= */}
+      {withdrawalNotification && (
+        <div
+          style={{
+            position: "fixed",
+            top: 20,
+            right: 20,
+            zIndex: 99999,
+            width: "min(420px, calc(100vw - 40px))",
+            background: "#ffffff",
+            borderRadius: 22,
+            padding: 20,
+            boxShadow:
+              "0 24px 70px rgba(15,23,42,.22)",
+            border:
+              "1px solid #dbe7f5",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent:
+                "space-between",
+              alignItems: "flex-start",
+              gap: 15,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 15,
+                  display: "grid",
+                  placeItems: "center",
+                  background:
+                    "linear-gradient(135deg,#16a34a,#22c55e)",
+                  color: "#fff",
+                  fontSize: 23,
+                  fontWeight: 900,
+                }}
+              >
+                ✓
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing:
+                      ".08em",
+                    color: "#16a34a",
+                  }}
+                >
+                  CLASSIC SPORTY HACKS
+                </div>
+
+                <strong
+                  style={{
+                    display: "block",
+                    marginTop: 3,
+                    fontSize: 17,
+                    color: "#172033",
+                  }}
+                >
+                  {withdrawalNotification.title ||
+                    "Withdrawal Paid"}
+                </strong>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                closeWithdrawalNotification
+              }
+              style={{
+                border: 0,
+                background:
+                  "#f1f5f9",
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                cursor: "pointer",
+                fontSize: 20,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          </div>
+
+          <div
+            style={{
+              marginTop: 18,
+              padding: 16,
+              borderRadius: 16,
+              background:
+                "linear-gradient(135deg,#f0fff5,#f8fbff)",
+              border:
+                "1px solid #dcefe3",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 25,
+                fontWeight: 900,
+                color: "#172033",
+                marginBottom: 7,
+              }}
+            >
+              {withdrawalNotification.amount !=
+              null
+                ? money(
+                    withdrawalNotification.amount
+                  )
+                : ""}
+            </div>
+
+            <div
+              style={{
+                color: "#475467",
+                lineHeight: 1.55,
+                fontSize: 14,
+              }}
+            >
+              {withdrawalNotification.message}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              marginTop: 13,
+            }}
+          >
+            <span
+              style={{
+                padding:
+                  "7px 10px",
+                borderRadius: 999,
+                background:
+                  "#ecfdf3",
+                color:
+                  "#087443",
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              PAID
+            </span>
+
+            {withdrawalNotification.provider && (
+              <span
+                style={{
+                  padding:
+                    "7px 10px",
+                  borderRadius: 999,
+                  background:
+                    "#f1f5f9",
+                  color:
+                    "#475467",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {withdrawalNotification.provider ===
+                "MTN"
+                  ? "MTN Mobile Money"
+                  : withdrawalNotification.provider ===
+                    "VOD"
+                  ? "Telecel Cash"
+                  : withdrawalNotification.provider ===
+                    "ATL"
+                  ? "AirtelTigo Money"
+                  : withdrawalNotification.provider}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={
+              closeWithdrawalNotification
+            }
+            style={{
+              width: "100%",
+              marginTop: 16,
+            }}
+          >
+            Got it
+          </button>
+        </div>
+      )}
+
+      {/* =================================
+          TOP BAR
+          ================================= */}
       <header className="topbar main-topbar">
         <div className="brand-wrap">
-          <div className="brand-mark">CS</div>
+          <div className="brand-mark">
+            CS
+          </div>
+
           <div>
-            <div className="brand">CLASSIC SPORTY HACKS</div>
+            <div className="brand">
+              CLASSIC SPORTY HACKS
+            </div>
+
             <div className="brand-sub">
-              {profile?.full_name || session.user.email}
+              {profile?.full_name ||
+                session.user.email}
             </div>
           </div>
         </div>
@@ -711,12 +1500,24 @@ function App() {
         <div className="top-actions">
           <div className="top-balance">
             <span>Wallet</span>
-            <strong>{money(wallet?.balance)}</strong>
+            <strong>
+              {money(wallet?.balance)}
+            </strong>
           </div>
-          <button className="top-deposit-btn" onClick={() => setPage("wallet")}>
+
+          <button
+            className="top-deposit-btn"
+            onClick={() =>
+              setPage("wallet")
+            }
+          >
             + Deposit
           </button>
-          <button className="logout-btn" onClick={logout}>
+
+          <button
+            className="logout-btn"
+            onClick={logout}
+          >
             Logout
           </button>
         </div>
@@ -724,139 +1525,358 @@ function App() {
 
       <div className="app-shell">
         <aside className="sidebar">
-          <div className="side-title">MENU</div>
+          <div className="side-title">
+            MENU
+          </div>
 
           <NavButton
             active={page === "home"}
             icon="⌂"
             label="Home"
-            onClick={() => setPage("home")}
+            onClick={() =>
+              setPage("home")
+            }
           />
+
           <NavButton
-            active={page === "game" && selectedGame?.key === "football"}
-            icon="⚽"
-            label="Football"
-            onClick={() => openGame(GAME_CATALOG[2])}
+            active={
+              page === "game" &&
+              selectedGame?.key ===
+                "virtuals"
+            }
+            icon="🎰"
+            label="Instant Virtuals"
+            onClick={() =>
+              openGame(
+                GAME_CATALOG[0]
+              )
+            }
           />
+
           <NavButton
-            active={page === "game" && selectedGame?.key === "bottle"}
-            icon="🍾"
-            label="Flip the Bottle"
-            onClick={() => openGame(GAME_CATALOG[1])}
+            active={
+              page === "game" &&
+              selectedGame?.key ===
+                "aviator"
+            }
+            icon="✈️"
+            label="Aviator"
+            onClick={() =>
+              openGame(
+                GAME_CATALOG[1]
+              )
+            }
           />
+
+          <NavButton
+            active={
+              page === "game" &&
+              selectedGame?.key ===
+                "coin"
+            }
+            icon="🪙"
+            label="Flip the Coin"
+            onClick={() =>
+              openGame(
+                GAME_CATALOG[2]
+              )
+            }
+          />
+
           <NavButton
             active={page === "bets"}
             icon="🎟️"
             label="My Bets"
-            onClick={() => setPage("bets")}
+            onClick={() =>
+              setPage("bets")
+            }
           />
+
           <NavButton
             active={page === "wallet"}
             icon="💰"
             label="Wallet"
-            onClick={() => setPage("wallet")}
+            onClick={() =>
+              setPage("wallet")
+            }
           />
+
           <NavButton
-            active={page === "transactions"}
+            active={
+              page === "transactions"
+            }
             icon="🧾"
             label="Transactions"
-            onClick={() => setPage("transactions")}
+            onClick={() =>
+              setPage("transactions")
+            }
           />
 
           {isAdmin && (
             <>
-              <div className="side-title admin-title">MANAGEMENT</div>
+              <div className="side-title admin-title">
+                MANAGEMENT
+              </div>
+
               <NavButton
-                active={page === "admin"}
+                active={
+                  page === "admin"
+                }
                 icon="🛠️"
                 label="Admin Dashboard"
-                onClick={() => setPage("admin")}
+                onClick={() =>
+                  setPage("admin")
+                }
               />
             </>
           )}
 
           <div className="sidebar-card">
-            <div className="mini-icon">🎯</div>
-            <strong>Sure Prediction</strong>
-            <p>Choose a package, submit a clear match screenshot and wait for manual processing.</p>
+            <div className="mini-icon">
+              🎮
+            </div>
+
+            <strong>
+              Instant Games
+            </strong>
+
+            <p>
+              Play Instant Virtuals, Aviator or Flip the Coin from one wallet.
+            </p>
           </div>
         </aside>
 
         <main className="main-content">
-          {message && <div className="alert success">{message}</div>}
-          {error && <div className="alert error">{error}</div>}
+          {message && (
+            <div className="alert success">
+              {message}
+            </div>
+          )}
 
+          {error && (
+            <div className="alert error">
+              {error}
+            </div>
+          )}
+
+          {/* HOME */}
           {page === "home" && (
             <section className="page-section home-dashboard-page">
               <div className="hero-banner">
                 <div className="hero-copy">
-                  <span className="hero-kicker">CLASSIC SPORTY HACKS</span>
-                  <h1>Pick your game.<br /><span>Build your prediction.</span></h1>
-                  <p>Choose Football, Casino or Flip the Bottle. Open a game, select your package and continue through your wallet deposit area.</p>
+                  <span className="hero-kicker">
+                    CLASSIC SPORTY HACKS
+                  </span>
+
+                  <h1>
+                    Pick your game.
+                    <br />
+                    <span>
+                      Build your prediction.
+                    </span>
+                  </h1>
+
+                  <p>
+                    Choose Instant Virtuals, Aviator or
+                    Flip the Coin. Open a game,
+                    choose your stake or package and
+                    play directly from your wallet.
+                  </p>
+
                   <div className="hero-buttons">
-                    <button className="btn btn-white" type="button" onClick={() => openGame(GAME_CATALOG[2])}>Open Football</button>
-                    <button className="btn btn-yellow" type="button" onClick={() => setPage("wallet")}>+ Add Funds</button>
+                    <button
+                      className="btn btn-white"
+                      type="button"
+                      onClick={() =>
+                        openGame(
+                          GAME_CATALOG[0]
+                        )
+                      }
+                    >
+                      Open Instant Virtuals
+                    </button>
+
+                    <button
+                      className="btn btn-yellow"
+                      type="button"
+                      onClick={() =>
+                        setPage("wallet")
+                      }
+                    >
+                      + Add Funds
+                    </button>
                   </div>
                 </div>
+
                 <div className="hero-art">
-                  <div className="football">⚽</div>
-                  <div className="hero-chip chip-one">SURE PREDICTION</div>
-                  <div className="hero-chip chip-two">3 PACKAGES</div>
-                  <div className="hero-score"><span>WALLET</span><strong>{money(wallet?.balance)}</strong></div>
+                  <div className="football">
+                    🎰
+                  </div>
+
+                  <div className="hero-chip chip-one">
+                    INSTANT VIRTUALS
+                  </div>
+
+                  <div className="hero-chip chip-two">
+                    3 PACKAGES
+                  </div>
+
+                  <div className="hero-score">
+                    <span>WALLET</span>
+                    <strong>
+                      {money(
+                        wallet?.balance
+                      )}
+                    </strong>
+                  </div>
                 </div>
               </div>
 
               <div className="feature-grid">
-                <button className="feature-card feature-blue" type="button" onClick={() => openGame(GAME_CATALOG[2])}>
-                  <div className="feature-icon">⚽</div><div><strong>Football</strong><span>Named teams & Sure Prediction</span></div><b className="feature-arrow">›</b>
+                <button
+                  className="feature-card feature-blue"
+                  type="button"
+                  onClick={() => openGame(GAME_CATALOG[0])}
+                >
+                  <div className="feature-icon">🎰</div>
+                  <div>
+                    <strong>Instant Virtuals</strong>
+                    <span>Fast virtual football rounds</span>
+                  </div>
+                  <b className="feature-arrow">›</b>
                 </button>
-                <button className="feature-card feature-orange" type="button" onClick={() => openGame(GAME_CATALOG[0])}>
-                  <div className="feature-icon">🎰</div><div><strong>Casino</strong><span>Packages & Sure Prediction</span></div><b className="feature-arrow">›</b>
+
+                <button
+                  className="feature-card feature-orange"
+                  type="button"
+                  onClick={() => openGame(GAME_CATALOG[1])}
+                >
+                  <div className="feature-icon">✈️</div>
+                  <div>
+                    <strong>Aviator</strong>
+                    <span>Fast multiplier rounds</span>
+                  </div>
+                  <b className="feature-arrow">›</b>
                 </button>
-                <button className="feature-card feature-green" type="button" onClick={() => openGame(GAME_CATALOG[1])}>
-                  <div className="feature-icon">🍾</div><div><strong>Flip the Bottle</strong><span>Choose your stake and play</span></div><b className="feature-arrow">›</b>
+
+                <button
+                  className="feature-card feature-green"
+                  type="button"
+                  onClick={() => openGame(GAME_CATALOG[2])}
+                >
+                  <div className="feature-icon">🪙</div>
+                  <div>
+                    <strong>Flip the Coin</strong>
+                    <span>Heads or Tails from GHS 50</span>
+                  </div>
+                  <b className="feature-arrow">›</b>
                 </button>
-                <button className="feature-card feature-purple" type="button" onClick={() => setPage("wallet")}>
-                  <div className="feature-icon">💰</div><div><strong>Wallet</strong><span>Deposit & manage your balance</span></div><b className="feature-arrow">›</b>
+
+                <button
+                  className="feature-card feature-purple"
+                  type="button"
+                  onClick={() => setPage("wallet")}
+                >
+                  <div className="feature-icon">💰</div>
+                  <div>
+                    <strong>Wallet</strong>
+                    <span>Deposit & manage your balance</span>
+                  </div>
+                  <b className="feature-arrow">›</b>
                 </button>
               </div>
 
               <div className="section-heading">
-                <div><span className="eyebrow">PLAY & PREDICT</span><h2>Choose your game</h2><p>Every game has GHS 300, GHS 400 and GHS 500 packages.</p></div>
+                <div>
+                  <span className="eyebrow">
+                    PLAY & PREDICT
+                  </span>
+
+                  <h2>
+                    Choose your game
+                  </h2>
+
+                  <p>
+                    Choose a package for Instant Virtuals or Aviator, or play Flip the Coin directly.
+                  </p>
+                </div>
               </div>
 
               <div className="home-game-grid home-game-grid-three">
-                {GAME_CATALOG.map((game) => (
-                  <GameChoiceCard key={game.key} game={game} onOpen={openGame} />
-                ))}
+                {GAME_CATALOG.map(
+                  (game) => (
+                    <GameChoiceCard
+                      key={game.key}
+                      game={game}
+                      onOpen={openGame}
+                    />
+                  )
+                )}
               </div>
 
               <div className="home-wallet-banner">
                 <div>
-                  <span className="eyebrow">YOUR WALLET</span>
-                  <h3>{money(wallet?.balance)}</h3>
-                  <p>Select a package and the amount will be carried into the Deposit area.</p>
+                  <span className="eyebrow">
+                    YOUR WALLET
+                  </span>
+
+                  <h3>
+                    {money(
+                      wallet?.balance
+                    )}
+                  </h3>
+
+                  <p>
+                    Select a package and the
+                    amount will be carried into
+                    the Deposit area.
+                  </p>
                 </div>
-                <button className="btn btn-primary" type="button" onClick={() => setPage("wallet")}>Go to Deposit</button>
+
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={() =>
+                    setPage("wallet")
+                  }
+                >
+                  Go to Deposit
+                </button>
               </div>
             </section>
           )}
 
-          {page === "game" && selectedGame && (
-            <GameDetailPage
-              game={selectedGame}
-              wallet={wallet}
-              onBack={() => setPage("home")}
-              onPackage={choosePackage}
-              onPrediction={() => openSurePrediction(selectedGame)}
-              onRefresh={loadAll}
-              onDeposit={(amount) => {
-                setDepositAmount(String(amount));
-                setPage("wallet");
-              }}
-            />
-          )}
+          {/* GAME */}
+          {page === "game" &&
+            selectedGame && (
+              <GameDetailPage
+                game={selectedGame}
+                wallet={wallet}
+                onBack={() => setPage("home")}
+                onVirtualPackage={chooseVirtualPackage}
+                onAviatorPackage={chooseAviatorPackage}
+                virtualSelections={virtualSelections}
+                toggleVirtualSelection={toggleVirtualSelection}
+                virtualCombinedOdds={virtualCombinedOdds}
+                virtualStake={virtualStake}
+                setVirtualStake={setVirtualStake}
+                placeVirtualBet={placeVirtualBet}
+                virtualBetAnimation={virtualBetAnimation}
+                virtualBetAnimationSeconds={virtualBetAnimationSeconds}
+                aviatorStake={aviatorStake}
+                setAviatorStake={setAviatorStake}
+                aviatorMultiplier={aviatorMultiplier}
+                playAviator={playAviator}
+                coinRefresh={loadAll}
+                onDeposit={(amount) => {
+                  setDepositAmount(String(amount));
+                  setPage("wallet");
+                }}
+                busy={busy}
+              />
+            )}
 
+          {/* BETS */}
           {page === "bets" && (
             <section className="page-section">
               <PageTitle
@@ -867,12 +1887,25 @@ function App() {
 
               {bets.length === 0 ? (
                 <div className="empty-card">
-                  <div className="empty-icon">🎟️</div>
-                  <h3>No bets yet</h3>
-                  <p>Your football bet history will appear here when you place a bet.</p>
+                  <div className="empty-icon">
+                    🎟️
+                  </div>
+
+                  <h3>
+                    No bets yet
+                  </h3>
+
+                  <p>
+                    Your Instant Virtuals betting history
+                    will appear here when you
+                    play a virtual round.
+                  </p>
+
                   <button
                     className="btn btn-primary"
-                    onClick={() => setPage("home")}
+                    onClick={() =>
+                      setPage("home")
+                    }
                   >
                     Go to Games
                   </button>
@@ -880,32 +1913,61 @@ function App() {
               ) : (
                 <div className="bet-history-grid">
                   {bets.map((bet) => (
-                    <div className="history-card" key={bet.id}>
+                    <div
+                      className="history-card"
+                      key={bet.id}
+                    >
                       <div className="history-top">
                         <div>
-                          <span className="eyebrow">BET REFERENCE</span>
-                          <strong>#{String(bet.id).slice(0, 8)}</strong>
+                          <span className="eyebrow">
+                            BET REFERENCE
+                          </span>
+
+                          <strong>
+                            #
+                            {String(
+                              bet.id
+                            ).slice(0, 8)}
+                          </strong>
                         </div>
+
                         <span className="status-pill">
-                          {String(bet.status || "pending").toUpperCase()}
+                          {String(
+                            bet.status ||
+                              "pending"
+                          ).toUpperCase()}
                         </span>
                       </div>
 
                       <div className="history-stats">
-                        <Stat label="Stake" value={money(bet.stake)} />
+                        <Stat
+                          label="Stake"
+                          value={money(
+                            bet.stake
+                          )}
+                        />
+
                         <Stat
                           label="Combined odds"
-                          value={Number(bet.combined_odds || 0).toFixed(2)}
+                          value={Number(
+                            bet.combined_odds ||
+                              0
+                          ).toFixed(2)}
                         />
+
                         <Stat
                           label="Potential win"
-                          value={money(bet.potential_win)}
+                          value={money(
+                            bet.potential_win
+                          )}
                         />
                       </div>
 
                       {bet.created_at && (
                         <div className="history-date">
-                          {fmtDate(bet.created_at)}
+                          {fmtDate(
+                            bet.created_at
+                          )}
                         </div>
                       )}
                     </div>
@@ -915,6 +1977,7 @@ function App() {
             </section>
           )}
 
+          {/* WALLET */}
           {page === "wallet" && (
             <section className="page-section">
               <PageTitle
@@ -923,47 +1986,99 @@ function App() {
                 text="Deposit funds and request withdrawals."
               />
 
-              {selectedPackage && (
-                <div className="selected-package-banner">
-                  <div><span className="eyebrow">SURE PREDICTION PACKAGE</span><strong>GHS {selectedPackage.price} · {selectedPackage.predictions} prediction{selectedPackage.predictions > 1 ? "s" : ""}</strong><p>The selected amount is already filled into Deposit.</p></div>
-                  <button type="button" className="btn btn-secondary" onClick={() => setPage("game")}>Back to Game</button>
-                </div>
-              )}
 
               <div className="wallet-balance-card">
                 <div>
-                  <span>AVAILABLE BALANCE</span>
-                  <strong>{money(wallet?.balance)}</strong>
-                  <small>{wallet?.currency || "GHS"}</small>
+                  <span>
+                    AVAILABLE BALANCE
+                  </span>
+
+                  <strong>
+                    {money(
+                      wallet?.balance
+                    )}
+                  </strong>
+
+                  <small>
+                    {wallet?.currency ||
+                      "GHS"}
+                  </small>
                 </div>
-                <div className="wallet-symbol">₵</div>
+
+                <div className="wallet-symbol">
+                  ₵
+                </div>
               </div>
 
               <div className="wallet-grid">
-                <form className="form-card deposit-manual-card" onSubmit={handleRealDeposit}>
-                  <div className="form-icon green-icon">₵</div>
-                  <span className="eyebrow">MANUAL MOBILE MONEY DEPOSIT</span>
-                  <h3>Send money to Classic Sporty</h3>
-                  <p>Send the real deposit from your MTN Mobile Money account, then submit the transaction reference below. Your in-app balance does not change until the payment is verified.</p>
+                {/* DEPOSIT */}
+                <form
+                  className="form-card deposit-manual-card"
+                  onSubmit={
+                    handleRealDeposit
+                  }
+                >
+                  <div className="form-icon green-icon">
+                    ₵
+                  </div>
+
+                  <span className="eyebrow">
+                    MANUAL MOBILE MONEY
+                    DEPOSIT
+                  </span>
+
+                  <h3>
+                    Send money to Classic
+                    Sporty
+                  </h3>
+
+                  <p>
+                    Send the real deposit from
+                    your MTN Mobile Money
+                    account, then submit the
+                    transaction reference below.
+                    Your in-app balance does not
+                    change until the payment is
+                    verified.
+                  </p>
 
                   <div className="momo-payment-box">
                     <div className="momo-brand-row">
-                      <span className="momo-badge">MTN</span>
+                      <span className="momo-badge">
+                        MTN
+                      </span>
+
                       <div>
-                        <strong>MTN Mobile Money</strong>
-                        <small>Payment number</small>
+                        <strong>
+                          MTN Mobile Money
+                        </strong>
+
+                        <small>
+                          Payment number
+                        </small>
                       </div>
                     </div>
-                    <div className="momo-number">0597021610</div>
+
+                    <div className="momo-number">
+                      0597021610
+                    </div>
+
                     <button
                       type="button"
                       className="copy-number-btn"
                       onClick={async () => {
                         try {
-                          await navigator.clipboard.writeText("0597021610");
-                          flash("MTN payment number copied.");
+                          await navigator.clipboard.writeText(
+                            "0597021610"
+                          );
+
+                          flash(
+                            "MTN payment number copied."
+                          );
                         } catch {
-                          flash("Payment number: 0597021610");
+                          flash(
+                            "Payment number: 0597021610"
+                          );
                         }
                       }}
                     >
@@ -972,12 +2087,42 @@ function App() {
                   </div>
 
                   <div className="deposit-steps">
-                    <div><b>1</b><span>Send your chosen amount to <strong>0597021610</strong> on MTN MoMo.</span></div>
-                    <div><b>2</b><span>Confirm the recipient name shown in your MoMo prompt before sending.</span></div>
-                    <div><b>3</b><span>Enter the amount and your MoMo transaction/reference number below.</span></div>
+                    <div>
+                      <b>1</b>
+                      <span>
+                        Send your chosen amount
+                        to{" "}
+                        <strong>
+                          0597021610
+                        </strong>{" "}
+                        on MTN MoMo.
+                      </span>
+                    </div>
+
+                    <div>
+                      <b>2</b>
+                      <span>
+                        Confirm the recipient
+                        name shown in your MoMo
+                        prompt before sending.
+                      </span>
+                    </div>
+
+                    <div>
+                      <b>3</b>
+                      <span>
+                        Enter the amount and
+                        your MoMo
+                        transaction/reference
+                        number below.
+                      </span>
+                    </div>
                   </div>
 
-                  <label>Amount (GHS)</label>
+                  <label>
+                    Amount (GHS)
+                  </label>
+
                   <input
                     className="field"
                     type="number"
@@ -985,35 +2130,79 @@ function App() {
                     step="0.01"
                     placeholder="100.00"
                     value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
+                    onChange={(e) =>
+                      setDepositAmount(
+                        e.target.value
+                      )
+                    }
                   />
 
-                  <label>MoMo transaction/reference number</label>
+                  <label>
+                    MoMo
+                    transaction/reference
+                    number
+                  </label>
+
                   <input
                     className="field"
                     type="text"
                     placeholder="e.g. 123456789012"
-                    value={depositReference}
-                    onChange={(e) => setDepositReference(e.target.value)}
+                    value={
+                      depositReference
+                    }
+                    onChange={(e) =>
+                      setDepositReference(
+                        e.target.value
+                      )
+                    }
                   />
 
-                  <button className="btn btn-primary big-btn" disabled={busy}>
-                    {busy ? "Submitting..." : "Submit deposit for verification"}
+                  <button
+                    className="btn btn-primary big-btn"
+                    disabled={busy}
+                  >
+                    {busy
+                      ? "Submitting..."
+                      : "Submit deposit for verification"}
                   </button>
 
-                  <div className="helper">Your wallet is credited only after the payment is checked and approved.</div>
+                  <div className="helper">
+                    Your wallet is credited only
+                    after the payment is checked
+                    and approved.
+                  </div>
                 </form>
 
-                <form className="form-card" onSubmit={requestWithdrawal}>
-                  <div className="form-icon orange-icon">↗</div>
-                  <span className="eyebrow">CASH OUT</span>
-                  <h3>Withdraw to Mobile Money</h3>
+                {/* WITHDRAWAL */}
+                <form
+                  className="form-card"
+                  onSubmit={
+                    requestWithdrawal
+                  }
+                >
+                  <div className="form-icon orange-icon">
+                    ↗
+                  </div>
+
+                  <span className="eyebrow">
+                    CASH OUT
+                  </span>
+
+                  <h3>
+                    Withdraw to Mobile Money
+                  </h3>
+
                   <p>
-                    Your request is held for manual processing. An admin sends
-                    the MoMo payment and marks it paid.
+                    Your request is held for
+                    manual processing. An admin
+                    sends the MoMo payment and
+                    marks it paid.
                   </p>
 
-                  <label>Amount</label>
+                  <label>
+                    Amount
+                  </label>
+
                   <input
                     className="field"
                     type="number"
@@ -1021,88 +2210,165 @@ function App() {
                     step="0.01"
                     placeholder="10.00"
                     value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    onChange={(e) =>
+                      setWithdrawAmount(
+                        e.target.value
+                      )
+                    }
                   />
 
-                  <label>Network</label>
+                  <label>
+                    Network
+                  </label>
+
                   <select
                     className="field"
-                    value={withdrawProvider}
-                    onChange={(e) => setWithdrawProvider(e.target.value)}
+                    value={
+                      withdrawProvider
+                    }
+                    onChange={(e) =>
+                      setWithdrawProvider(
+                        e.target.value
+                      )
+                    }
                   >
-                    <option value="MTN">MTN Mobile Money</option>
-                    <option value="VOD">Telecel Cash</option>
-                    <option value="ATL">AirtelTigo Money</option>
+                    <option value="MTN">
+                      MTN Mobile Money
+                    </option>
+
+                    <option value="VOD">
+                      Telecel Cash
+                    </option>
+
+                    <option value="ATL">
+                      AirtelTigo Money
+                    </option>
                   </select>
 
-                  <label>MoMo account name</label>
+                  <label>
+                    MoMo account name
+                  </label>
+
                   <input
                     className="field"
                     placeholder="Account name"
                     value={withdrawName}
-                    onChange={(e) => setWithdrawName(e.target.value)}
+                    onChange={(e) =>
+                      setWithdrawName(
+                        e.target.value
+                      )
+                    }
                   />
 
-                  <label>MoMo number</label>
+                  <label>
+                    MoMo number
+                  </label>
+
                   <input
                     className="field"
                     type="tel"
                     inputMode="numeric"
                     maxLength={10}
                     placeholder="0551234567"
-                    value={withdrawDestination}
+                    value={
+                      withdrawDestination
+                    }
                     onChange={(e) =>
                       setWithdrawDestination(
-                        e.target.value.replace(/\D/g, "").slice(0, 10)
+                        e.target.value
+                          .replace(
+                            /\D/g,
+                            ""
+                          )
+                          .slice(0, 10)
                       )
                     }
                   />
 
-                  <button className="btn btn-orange big-btn" disabled={busy}>
-                    {busy ? "Submitting..." : "Request withdrawal"}
+                  <button
+                    className="btn btn-orange big-btn"
+                    disabled={busy}
+                  >
+                    {busy
+                      ? "Submitting..."
+                      : "Request withdrawal"}
                   </button>
 
                   <div className="helper">
-                    Minimum withdrawal: <strong>GHS 10.00</strong>
+                    Minimum withdrawal:{" "}
+                    <strong>
+                      GHS 10.00
+                    </strong>
                   </div>
                 </form>
               </div>
 
-              {manualWithdrawals.length > 0 && (
+              {manualWithdrawals.length >
+                0 && (
                 <div className="panel-card">
                   <div className="section-heading compact">
                     <div>
-                      <span className="eyebrow">REQUEST HISTORY</span>
-                      <h2>Recent Withdrawals</h2>
+                      <span className="eyebrow">
+                        REQUEST HISTORY
+                      </span>
+
+                      <h2>
+                        Recent Withdrawals
+                      </h2>
                     </div>
                   </div>
 
                   <div className="withdrawal-list">
-                    {manualWithdrawals.slice(0, 10).map((w) => (
-                      <div className="withdrawal-row" key={w.id}>
-                        <div className="withdrawal-icon">₵</div>
-                        <div className="withdrawal-main">
-                          <strong>{money(w.amount)}</strong>
-                          <span>
-                            {w.provider} • {w.phone}
-                          </span>
-                          <small>{fmtDate(w.created_at)}</small>
-                        </div>
-                        <span
-                          className={`status-pill status-${String(
-                            w.status || "pending"
-                          ).toLowerCase()}`}
+                    {manualWithdrawals
+                      .slice(0, 10)
+                      .map((w) => (
+                        <div
+                          className="withdrawal-row"
+                          key={w.id}
                         >
-                          {String(w.status || "pending").toUpperCase()}
-                        </span>
-                      </div>
-                    ))}
+                          <div className="withdrawal-icon">
+                            ₵
+                          </div>
+
+                          <div className="withdrawal-main">
+                            <strong>
+                              {money(
+                                w.amount
+                              )}
+                            </strong>
+
+                            <span>
+                              {w.provider} •{" "}
+                              {w.phone}
+                            </span>
+
+                            <small>
+                              {fmtDate(
+                                w.created_at
+                              )}
+                            </small>
+                          </div>
+
+                          <span
+                            className={`status-pill status-${String(
+                              w.status ||
+                                "pending"
+                            ).toLowerCase()}`}
+                          >
+                            {String(
+                              w.status ||
+                                "pending"
+                            ).toUpperCase()}
+                          </span>
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}
             </section>
           )}
 
+          {/* TRANSACTIONS */}
           {page === "transactions" && (
             <section className="page-section">
               <PageTitle
@@ -1111,98 +2377,188 @@ function App() {
                 text="See your wallet activity."
               />
 
-              {transactions.length === 0 ? (
+              {transactions.length ===
+              0 ? (
                 <div className="empty-card">
-                  <div className="empty-icon">🧾</div>
-                  <h3>No transactions yet</h3>
-                  <p>Your wallet transactions will appear here.</p>
+                  <div className="empty-icon">
+                    🧾
+                  </div>
+
+                  <h3>
+                    No transactions yet
+                  </h3>
+
+                  <p>
+                    Your wallet transactions
+                    will appear here.
+                  </p>
                 </div>
               ) : (
                 <div className="transaction-list">
-                  {transactions.map((tx) => (
-                    <div className="transaction-row" key={tx.id}>
+                  {transactions.map(
+                    (tx) => (
                       <div
-                        className={`transaction-icon ${
-                          String(tx.type).toLowerCase() === "deposit"
-                            ? "tx-green"
-                            : "tx-orange"
-                        }`}
+                        className="transaction-row"
+                        key={tx.id}
                       >
-                        {String(tx.type).toLowerCase() === "deposit"
-                          ? "↓"
-                          : "↑"}
-                      </div>
+                        <div
+                          className={`transaction-icon ${
+                            String(
+                              tx.type
+                            ).toLowerCase() ===
+                            "deposit"
+                              ? "tx-green"
+                              : "tx-orange"
+                          }`}
+                        >
+                          {String(
+                            tx.type
+                          ).toLowerCase() ===
+                          "deposit"
+                            ? "↓"
+                            : "↑"}
+                        </div>
 
-                      <div className="transaction-info">
-                        <strong>{tx.description || tx.type || "Transaction"}</strong>
-                        <span>{fmtDate(tx.created_at)}</span>
-                        {tx.reference && <small>Ref: {tx.reference}</small>}
-                      </div>
+                        <div className="transaction-info">
+                          <strong>
+                            {tx.description ||
+                              tx.type ||
+                              "Transaction"}
+                          </strong>
 
-                      <div className="transaction-amount">
-                        <strong>{money(tx.amount)}</strong>
-                        <span>{String(tx.status || "").toUpperCase()}</span>
+                          <span>
+                            {fmtDate(
+                              tx.created_at
+                            )}
+                          </span>
+
+                          {tx.reference && (
+                            <small>
+                              Ref:{" "}
+                              {
+                                tx.reference
+                              }
+                            </small>
+                          )}
+                        </div>
+
+                        <div className="transaction-amount">
+                          <strong>
+                            {money(
+                              tx.amount
+                            )}
+                          </strong>
+
+                          <span>
+                            {String(
+                              tx.status ||
+                                ""
+                            ).toUpperCase()}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               )}
             </section>
           )}
 
-          {page === "admin" && isAdmin && <AdminPanel onRefresh={loadAll} />}
-          {predictionGame && (
-            <PredictionModal
-              game={predictionGame}
-              pkg={selectedPackage}
-              wallet={wallet}
-              onClose={() => setPredictionGame(null)}
-              onSubmit={confirmSurePrediction}
-              onCharged={async () => {
-                await Promise.all([loadWallet(), loadUserData()]);
-              }}
-            />
-          )}
+          {/* ADMIN */}
+          {page === "admin" &&
+            isAdmin && (
+              <AdminPanel
+                onRefresh={loadAll}
+              />
+            )}
+
         </main>
       </div>
     </div>
   );
 }
 
-function NavButton({ active, icon, label, onClick }) {
+// =====================================================
+// NAV BUTTON
+// =====================================================
+
+function NavButton({
+  active,
+  icon,
+  label,
+  onClick,
+}) {
   return (
     <button
-      className={`side-nav ${active ? "active" : ""}`}
+      className={`side-nav ${
+        active ? "active" : ""
+      }`}
       onClick={onClick}
     >
       <span>{icon}</span>
+
       <strong>{label}</strong>
+
       {active && <i />}
     </button>
   );
 }
 
-function FeatureCard({ icon, title, text, color }) {
+// =====================================================
+// FEATURE CARD
+// =====================================================
+
+function FeatureCard({
+  icon,
+  title,
+  text,
+  color,
+}) {
   return (
-    <div className={`feature-card feature-${color}`}>
-      <div className="feature-icon">{icon}</div>
+    <div
+      className={`feature-card feature-${color}`}
+    >
+      <div className="feature-icon">
+        {icon}
+      </div>
+
       <div>
         <strong>{title}</strong>
         <span>{text}</span>
       </div>
-      <div className="feature-arrow">→</div>
+
+      <div className="feature-arrow">
+        →
+      </div>
     </div>
   );
 }
 
-function PlayerCard({ initials, number, name, club, tone }) {
+// =====================================================
+// PLAYER CARD
+// =====================================================
+
+function PlayerCard({
+  initials,
+  number,
+  name,
+  club,
+  tone,
+}) {
   return (
-    <div className={`player-card ${tone}`}>
+    <div
+      className={`player-card ${tone}`}
+    >
       <div className="player-glow" />
-      <div className="player-head">{initials}</div>
+
+      <div className="player-head">
+        {initials}
+      </div>
+
       <div className="player-shirt">
         <span>{number}</span>
       </div>
+
       <div className="player-details">
         <strong>{name}</strong>
         <span>{club}</span>
@@ -1211,15 +2567,31 @@ function PlayerCard({ initials, number, name, club, tone }) {
   );
 }
 
-function PageTitle({ eyebrow, title, text }) {
+// =====================================================
+// PAGE TITLE
+// =====================================================
+
+function PageTitle({
+  eyebrow,
+  title,
+  text,
+}) {
   return (
     <div className="page-title">
-      <span className="eyebrow">{eyebrow}</span>
+      <span className="eyebrow">
+        {eyebrow}
+      </span>
+
       <h1>{title}</h1>
+
       <p>{text}</p>
     </div>
   );
 }
+
+// =====================================================
+// STAT
+// =====================================================
 
 function Stat({ label, value }) {
   return (
@@ -1230,100 +2602,75 @@ function Stat({ label, value }) {
   );
 }
 
-function GameChoiceCard({ game, onOpen }) {
+// =====================================================
+// GAME CHOICE
+// =====================================================
+
+function GameChoiceCard({
+  game,
+  onOpen,
+}) {
   return (
-    <article className={`game-choice-card game-${game.tone}`} onClick={() => onOpen(game)}>
-      <div className="game-choice-icon">{game.icon}</div>
-      <span className="eyebrow">{game.subtitle}</span>
+    <article
+      className={`game-choice-card game-${game.tone}`}
+      onClick={() =>
+        onOpen(game)
+      }
+    >
+      <div className="game-choice-icon">
+        {game.icon}
+      </div>
+
+      <span className="eyebrow">
+        {game.subtitle}
+      </span>
+
       <h3>{game.title}</h3>
-      <p>{game.description}</p>
-      <button className="btn btn-primary" type="button" onClick={(e) => { e.stopPropagation(); onOpen(game); }}>
+
+      <p>
+        {game.description}
+      </p>
+
+      <button
+        className="btn btn-primary"
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen(game);
+        }}
+      >
         Open {game.title}
       </button>
     </article>
   );
 }
 
-function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefresh, onDeposit }) {
-  const footballMatches = [
-    ["Real Madrid", "Barcelona"],
-    ["Manchester City", "Liverpool"],
-    ["Bayern Munich", "Borussia Dortmund"],
-    ["Arsenal", "Chelsea"],
-    ["Inter Milan", "AC Milan"],
-  ];
+// =====================================================
+// GAME DETAIL PAGE
+// =====================================================
 
-  const bottleStakes = [
-    { amount: 300, win: 600 },
-    { amount: 400, win: 800 },
-    { amount: 500, win: 1000 },
-  ];
-
-  // =========================
-  // FLIP THE BOTTLE — unchanged
-  // =========================
-  const [selectedStake, setSelectedStake] = useState(null);
-  const [bottlePlaying, setBottlePlaying] = useState(false);
-  const [bottleResult, setBottleResult] = useState(null);
-  const [bottleError, setBottleError] = useState("");
-
-  async function playBottle() {
-    if (!selectedStake || bottlePlaying) return;
-    setBottleError("");
-    setBottleResult(null);
-
-    const amount = Number(selectedStake.amount);
-    const balance = Number(wallet?.balance || 0);
-
-    if (balance < amount) {
-      onDeposit(amount);
-      return;
-    }
-
-    setBottlePlaying(true);
-
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1800));
-
-      const { data, error: rpcError } = await supabase.rpc("play_flip_bottle", {
-        p_stake: amount,
-      });
-
-      if (rpcError) throw rpcError;
-
-      const resultData = data || {};
-      const outcome = String(
-        resultData.result || resultData.outcome || ""
-      ).toUpperCase();
-      const payout = Number(
-        resultData.payout ?? resultData.win_amount ?? 0
-      );
-      const returnedBalance = Number(
-        resultData.new_balance ?? resultData.balance ?? NaN
-      );
-
-      if (outcome !== "WIN" && outcome !== "LOSE" && outcome !== "LOSS") {
-        throw new Error("The bottle round returned an invalid result.");
-      }
-
-      setBottleResult({
-        outcome: outcome === "LOSS" ? "LOSE" : outcome,
-        stake: amount,
-        payout,
-        balance: returnedBalance,
-      });
-
-      await onRefresh();
-    } catch (e) {
-      setBottleError(e?.message || "The bottle round could not be completed.");
-    } finally {
-      setBottlePlaying(false);
-    }
-  }
-
-  // =========================
-  // COIN FLIP — Casino only
-  // =========================
+function GameDetailPage({
+  game,
+  wallet,
+  onBack,
+  onVirtualPackage,
+  onAviatorPackage,
+  virtualSelections,
+  toggleVirtualSelection,
+  virtualCombinedOdds,
+  virtualStake,
+  setVirtualStake,
+  placeVirtualBet,
+  virtualBetAnimation,
+  virtualBetAnimationSeconds,
+  aviatorStake,
+  setAviatorStake,
+  aviatorMultiplier,
+  playAviator,
+  coinRefresh,
+  onDeposit,
+  busy,
+}) {
   const [coinStake, setCoinStake] = useState("");
   const [coinChoice, setCoinChoice] = useState("");
   const [coinPlaying, setCoinPlaying] = useState(false);
@@ -1334,41 +2681,36 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefre
   const coinPotentialWin = coinAmount >= 50 ? coinAmount * 3 : 0;
 
   async function playCoinFlip() {
-    if (coinPlaying) return;
+    if (coinPlaying || busy) return;
 
     setCoinError("");
     setCoinResult(null);
-
-    if (!Number.isFinite(coinAmount) || coinAmount < 50) {
-      setCoinError("Minimum coin flip stake is GHS 50.00.");
-      return;
-    }
 
     if (!["HEADS", "TAILS"].includes(coinChoice)) {
       setCoinError("Choose HEADS or TAILS first.");
       return;
     }
 
-    const balance = Number(wallet?.balance || 0);
+    if (!Number.isFinite(coinAmount) || coinAmount < 50) {
+      setCoinError("Minimum coin flip stake is GHS 50.00.");
+      return;
+    }
 
-    if (balance < coinAmount) {
-      setCoinError("Insufficient wallet balance for this stake.");
+    if (Number(wallet?.balance || 0) < coinAmount) {
+      onDeposit(coinAmount);
       return;
     }
 
     setCoinPlaying(true);
-
     try {
-      // The secure Supabase RPC performs the actual wallet debit,
-      // random result and payout atomically.
       await new Promise((resolve) => setTimeout(resolve, 1800));
 
-      const { data, error: rpcError } = await supabase.rpc("play_coin_flip", {
+      const { data, error } = await supabase.rpc("play_coin_flip", {
         p_stake: coinAmount,
         p_choice: coinChoice,
       });
 
-      if (rpcError) throw rpcError;
+      if (error) throw error;
 
       const resultData = data || {};
       const result = String(resultData.result || "").toUpperCase();
@@ -1393,7 +2735,8 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefre
         newBalance,
       });
 
-      await onRefresh();
+      setCoinStake("");
+      await coinRefresh();
     } catch (e) {
       setCoinError(e?.message || "The coin flip could not be completed.");
     } finally {
@@ -1408,6 +2751,12 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefre
     setCoinError("");
     setCoinPlaying(false);
   }
+
+  const virtualMarkets = [
+    ["home", "Home"],
+    ["draw", "Draw"],
+    ["away", "Away"],
+  ];
 
   return (
     <section className="page-section game-detail-page">
@@ -1426,542 +2775,376 @@ function GameDetailPage({ game, wallet, onBack, onPackage, onPrediction, onRefre
         </div>
       </div>
 
-      {/* =========================
-          CASINO = COIN FLIP ONLY
-          ========================= */}
-      {game.key === "casino" ? (
-        <div className="coinflip-page">
-          {!coinPlaying && !coinResult ? (
-            <>
-              <div
-                style={{
-                  marginTop: 22,
-                  padding: 30,
-                  borderRadius: 28,
-                  background:
-                    "linear-gradient(135deg,#fff5df 0%,#fff 52%,#eef7ff 100%)",
-                  border: "1px solid #eadfcf",
-                  textAlign: "center",
-                  boxShadow: "0 18px 50px rgba(30,41,59,.08)",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 76,
-                    lineHeight: 1,
-                    marginBottom: 12,
-                  }}
-                >
-                  🪙
-                </div>
-
-                <span className="eyebrow">CLASSIC CASINO</span>
-                <h2 style={{ margin: "8px 0", fontSize: 34 }}>
-                  COIN FLIP
-                </h2>
-                <p
-                  style={{
-                    maxWidth: 620,
-                    margin: "0 auto 24px",
-                    color: "#667085",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  Choose HEADS or TAILS, enter a stake of at least GHS 50,
-                  then flip the coin. A winning round pays <strong>3× the stake</strong>.
-                  The result and wallet balance are shown after every round.
-                </p>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-                    gap: 14,
-                    maxWidth: 560,
-                    margin: "0 auto 20px",
-                  }}
-                >
-                  <button
-                    type="button"
-                    className={`package-card ${coinChoice === "HEADS" ? "selected-stake-card" : ""}`}
-                    onClick={() => {
-                      setCoinChoice("HEADS");
-                      setCoinError("");
-                    }}
-                  >
-                    <div style={{ fontSize: 38, marginBottom: 8 }}>🪙</div>
-                    <strong style={{ fontSize: 20 }}>HEADS</strong>
-                    <div className="package-action">
-                      {coinChoice === "HEADS" ? "✓ SELECTED" : "CHOOSE HEADS"}
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`package-card ${coinChoice === "TAILS" ? "selected-stake-card" : ""}`}
-                    onClick={() => {
-                      setCoinChoice("TAILS");
-                      setCoinError("");
-                    }}
-                  >
-                    <div style={{ fontSize: 38, marginBottom: 8 }}>🪙</div>
-                    <strong style={{ fontSize: 20 }}>TAILS</strong>
-                    <div className="package-action">
-                      {coinChoice === "TAILS" ? "✓ SELECTED" : "CHOOSE TAILS"}
-                    </div>
-                  </button>
-                </div>
-
-                <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "left" }}>
-                  <label>Stake amount (GHS)</label>
-                  <input
-                    className="field"
-                    type="number"
-                    min="50"
-                    step="0.01"
-                    inputMode="decimal"
-                    placeholder="50.00"
-                    value={coinStake}
-                    onChange={(e) => {
-                      setCoinStake(e.target.value);
-                      setCoinError("");
-                    }}
-                  />
-
-                  <div
-                    style={{
-                      marginTop: 12,
-                      padding: 16,
-                      borderRadius: 16,
-                      background: "#f8fafc",
-                      border: "1px solid #e5e7eb",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(2,minmax(0,1fr))",
-                      gap: 12,
-                    }}
-                  >
-                    <div>
-                      <span style={{ display: "block", fontSize: 12, color: "#667085" }}>
-                        YOUR WALLET
-                      </span>
-                      <strong>{money(wallet?.balance)}</strong>
-                    </div>
-                    <div>
-                      <span style={{ display: "block", fontSize: 12, color: "#667085" }}>
-                        POTENTIAL WIN
-                      </span>
-                      <strong>{coinPotentialWin ? money(coinPotentialWin) : "—"}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                {coinError && (
-                  <div className="alert error" style={{ maxWidth: 560, margin: "16px auto 0", textAlign: "left" }}>
-                    {coinError}
-                  </div>
-                )}
-
-                <button
-                  className="btn btn-primary big-btn"
-                  type="button"
-                  disabled={coinPlaying}
-                  onClick={playCoinFlip}
-                  style={{ maxWidth: 560, width: "100%", marginTop: 18 }}
-                >
-                  Flip Coin
-                </button>
-
-                <div className="helper" style={{ marginTop: 12 }}>
-                  Minimum stake: <strong>GHS 50.00</strong> · Potential win: <strong>3× stake</strong>
-                </div>
-              </div>
-            </>
-          ) : coinPlaying ? (
-            <div
-              style={{
-                marginTop: 22,
-                minHeight: 470,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                textAlign: "center",
-                padding: 30,
-                borderRadius: 28,
-                background: "linear-gradient(135deg,#eef7ff,#fff)",
-                border: "1px solid #dbe7f5",
-              }}
-            >
-              <div
-                style={{
-                  width: 150,
-                  height: 150,
-                  borderRadius: "50%",
-                  display: "grid",
-                  placeItems: "center",
-                  fontSize: 82,
-                  background: "#fff",
-                  border: "8px solid #e7edf5",
-                  boxShadow: "0 20px 50px rgba(15,23,42,.15)",
-                  animation: "coinFlipSpin .55s linear infinite",
-                }}
-              >
-                🪙
-              </div>
-              <span className="eyebrow" style={{ marginTop: 28 }}>
-                COIN FLIP IN PROGRESS
-              </span>
-              <h2 style={{ margin: "8px 0" }}>FLIPPING...</h2>
-              <p style={{ color: "#667085" }}>
-                Stake: <strong>{money(coinAmount)}</strong> · Your choice:{" "}
-                <strong>{coinChoice}</strong>
-              </p>
-
-              <style>{`
-                @keyframes coinFlipSpin {
-                  0% { transform: rotateY(0deg) scale(1); }
-                  50% { transform: rotateY(180deg) scale(1.08); }
-                  100% { transform: rotateY(360deg) scale(1); }
-                }
-              `}</style>
+      {game.key === "virtuals" && (
+        <>
+          {virtualBetAnimation ? (
+            <div className="game-panel" style={{ textAlign: "center", padding: 45 }}>
+              <div style={{ fontSize: 64, animation: "cshPulse 1s ease-in-out infinite" }}>🎰</div>
+              <span className="eyebrow">INSTANT VIRTUALS</span>
+              <h2>Processing your virtual round</h2>
+              <p>Please wait while the round is settled.</p>
+              <strong style={{ fontSize: 42 }}>{virtualBetAnimationSeconds}</strong>
+              <div style={{ marginTop: 10, color: "#667085" }}>seconds remaining</div>
             </div>
           ) : (
-            <div
-              style={{
-                marginTop: 22,
-                padding: 30,
-                borderRadius: 28,
-                background:
-                  coinResult.outcome === "WIN"
-                    ? "linear-gradient(135deg,#effff5,#fff)"
-                    : "linear-gradient(135deg,#fff7f2,#fff)",
-                border: "1px solid #e4e7ec",
-                textAlign: "center",
-                boxShadow: "0 18px 50px rgba(30,41,59,.08)",
-              }}
-            >
-              <div style={{ fontSize: 82, marginBottom: 10 }}>🪙</div>
-
-              <span className="eyebrow">COIN FLIP RESULT</span>
-
-              <h2 style={{ fontSize: 38, margin: "8px 0" }}>
-                {coinResult.result}
-              </h2>
-
-              <div
-                style={{
-                  maxWidth: 560,
-                  margin: "0 auto 22px",
-                  padding: 20,
-                  borderRadius: 20,
-                  background: "#fff",
-                  border: "1px solid #e5e7eb",
-                }}
-              >
-                <div style={{ fontSize: 20, fontWeight: 800 }}>
-                  {coinResult.outcome === "WIN"
-                    ? "🎉 YOU WON!"
-                    : "ROUND COMPLETE"}
+            <>
+              <div className="section-heading compact" style={{ marginTop: 24 }}>
+                <div>
+                  <span className="eyebrow">INSTANT VIRTUALS</span>
+                  <h2>Today's Virtual Fixtures</h2>
+                  <p>Pick one market from each fixture and build your virtual round.</p>
                 </div>
-
-                <p style={{ color: "#667085", marginBottom: 0 }}>
-                  You chose <strong>{coinResult.choice}</strong>. The coin landed on{" "}
-                  <strong>{coinResult.result}</strong>.
-                </p>
-              </div>
-
-              <div
-                style={{
-                  maxWidth: 560,
-                  margin: "0 auto 22px",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3,minmax(0,1fr))",
-                  gap: 10,
-                }}
-              >
-                <div className="stat-box">
-                  <span>STAKE</span>
-                  <strong>{money(coinResult.stake)}</strong>
-                </div>
-                <div className="stat-box">
-                  <span>PAYOUT</span>
-                  <strong>{money(coinResult.payout)}</strong>
-                </div>
-                <div className="stat-box">
-                  <span>NEW BALANCE</span>
-                  <strong>{money(coinResult.newBalance)}</strong>
+                <div className="mini-wallet">
+                  Balance <strong>{money(wallet?.balance)}</strong>
                 </div>
               </div>
+
+              <div className="virtual-fixtures-grid">
+                {VIRTUAL_MATCHES.map((match) => (
+                  <div className="football-fixture virtual-fixture-card" key={match.id}>
+                    <div className="virtual-fixture-top">
+                      <span>{match.league}</span>
+                      <b>{match.time}</b>
+                    </div>
+                    <div className="virtual-teams">
+                      <strong>{match.home}</strong>
+                      <span>VS</span>
+                      <strong>{match.away}</strong>
+                    </div>
+                    <div className="virtual-odds-grid">
+                      {virtualMarkets.map(([key, label]) => {
+                        const selected = virtualSelections.some(
+                          (item) => item.matchId === match.id && item.market === key
+                        );
+                        return (
+                          <button
+                            type="button"
+                            key={key}
+                            className={`virtual-odd-button ${selected ? "selected" : ""}`}
+                            onClick={() => toggleVirtualSelection(match, key)}
+                            disabled={busy}
+                          >
+                            <span>{label}</span>
+                            <strong>{Number(match.odds[key]).toFixed(2)}</strong>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="game-panel virtual-bet-panel">
+                <div className="section-heading compact">
+                  <div>
+                    <span className="eyebrow">BET SLIP</span>
+                    <h2>Your Virtual Selection</h2>
+                  </div>
+                  <div className="mini-wallet">
+                    Balance <strong>{money(wallet?.balance)}</strong>
+                  </div>
+                </div>
+
+                {virtualSelections.length === 0 ? (
+                  <div className="empty-card">
+                    <div className="empty-icon">🎰</div>
+                    <h3>No selections yet</h3>
+                    <p>Choose a Home, Draw or Away market above.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="virtual-slip-list">
+                      {virtualSelections.map((item) => (
+                        <div className="virtual-slip-row" key={item.key}>
+                          <div>
+                            <strong>{item.home} vs {item.away}</strong>
+                            <span>{item.market.toUpperCase()} • {item.league}</span>
+                          </div>
+                          <b>{Number(item.odd).toFixed(2)}</b>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="virtual-summary">
+                      <span>Combined odds</span>
+                      <strong>{virtualCombinedOdds.toFixed(2)}</strong>
+                    </div>
+
+                    <form className="virtual-bet-form" onSubmit={placeVirtualBet}>
+                      <div>
+                        <label>Stake (GHS)</label>
+                        <input
+                          className="field"
+                          type="number"
+                          min="1"
+                          step="0.01"
+                          value={virtualStake}
+                          onChange={(e) => setVirtualStake(e.target.value)}
+                          placeholder="Enter stake"
+                          disabled={busy}
+                        />
+                      </div>
+                      <div className="virtual-potential">
+                        <span>Potential win</span>
+                        <strong>
+                          {Number(virtualStake) > 0
+                            ? money(Number(virtualStake) * virtualCombinedOdds)
+                            : "—"}
+                        </strong>
+                      </div>
+                      <button className="btn btn-primary big-btn" disabled={busy}>
+                        {busy ? "Processing..." : "Place Virtual Bet"}
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
+
+              <div className="package-heading">
+                <div>
+                  <span className="eyebrow">VIRTUAL PACKAGES</span>
+                  <h2>Instant Cash Out package structure</h2>
+                </div>
+              </div>
+
+              <div className="package-grid">
+                {VIRTUAL_PACKAGES.map((pkg) => (
+                  <button
+                    className="package-card"
+                    type="button"
+                    key={pkg.id}
+                    onClick={() => onVirtualPackage(pkg.price)}
+                  >
+                    <div className="package-top">
+                      <div>
+                        <strong>GHS {pkg.price}</strong>
+                        <span>AVAILABLE</span>
+                      </div>
+                      <i>{pkg.id === "starter" ? "⚡" : pkg.id === "pro" ? "🔥" : "💎"}</i>
+                    </div>
+                    <h3>{pkg.name}</h3>
+                    <div className="package-tags">
+                      <span>{pkg.screenshots} ROUND{pkg.screenshots > 1 ? "S" : ""}</span>
+                      <span>NO EXPIRY</span>
+                    </div>
+                    <div className="package-action">→ GET GHS {pkg.price}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {game.key === "aviator" && (
+        <>
+          <div className="game-panel aviator-panel">
+            <div className="aviator-stage">
+              <div className={`aviator-plane ${busy ? "aviator-flying" : ""}`}>✈️</div>
+              <div className="aviator-multiplier">
+                {aviatorMultiplier || "1.00x"}
+              </div>
+              <span>{aviatorMultiplier === "CRASHED" ? "ROUND CRASHED" : "AVIATOR ROUND"}</span>
+            </div>
+
+            <div className="aviator-info-grid">
+              <div>
+                <span>YOUR WALLET</span>
+                <strong>{money(wallet?.balance)}</strong>
+              </div>
+              <div>
+                <span>RESULT</span>
+                <strong>{aviatorMultiplier || "Ready"}</strong>
+              </div>
+            </div>
+
+            <form className="game-form" onSubmit={playAviator}>
+              <label>Stake amount (GHS)</label>
+              <input
+                className="field"
+                type="number"
+                min="1"
+                step="0.01"
+                value={aviatorStake}
+                onChange={(e) => setAviatorStake(e.target.value)}
+                placeholder="Enter stake"
+                disabled={busy}
+              />
+              <button className="btn btn-primary big-btn" disabled={busy}>
+                {busy ? "Flying..." : "Place Bet"}
+              </button>
+            </form>
+          </div>
+
+          <div className="package-heading">
+            <div>
+              <span className="eyebrow">AVIATOR PACKAGES</span>
+              <h2>Starter · Pro · VIP</h2>
+            </div>
+          </div>
+
+          <div className="package-grid">
+            {AVIATOR_PACKAGES.map((pkg) => (
+              <button
+                className="package-card"
+                type="button"
+                key={pkg.id}
+                onClick={() => onAviatorPackage(pkg.price)}
+              >
+                <div className="package-top">
+                  <div>
+                    <strong>GHS {pkg.price}</strong>
+                    <span>AVAILABLE</span>
+                  </div>
+                  <i>✈️</i>
+                </div>
+                <h3>{pkg.name}</h3>
+                <div className="package-tags">
+                  <span>{pkg.screenshots} ROUND{pkg.screenshots > 1 ? "S" : ""}</span>
+                  <span>NO EXPIRY</span>
+                </div>
+                <div className="package-action">→ GET GHS {pkg.price}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {game.key === "coin" && (
+        <div className="game-panel coinflip-page">
+          {!coinResult ? (
+            <>
+              <div className="coin-visual-wrap">
+                <div className={`coin-visual ${coinPlaying ? "coin-spin" : ""}`}>
+                  <div>{coinPlaying ? "?" : coinChoice || "🪙"}</div>
+                </div>
+                <strong>{coinPlaying ? "Flipping..." : "Choose Heads or Tails"}</strong>
+              </div>
+
+              <div className="coin-choice-grid">
+                {["HEADS", "TAILS"].map((choice) => (
+                  <button
+                    key={choice}
+                    type="button"
+                    className={`coin-choice ${coinChoice === choice ? "selected" : ""}`}
+                    onClick={() => {
+                      setCoinChoice(choice);
+                      setCoinError("");
+                    }}
+                    disabled={coinPlaying || busy}
+                  >
+                    🪙 <strong>{choice}</strong>
+                  </button>
+                ))}
+              </div>
+
+              <label>Stake amount (GHS)</label>
+              <input
+                className="field"
+                type="number"
+                min="50"
+                step="0.01"
+                placeholder="50.00"
+                value={coinStake}
+                onChange={(e) => {
+                  setCoinStake(e.target.value);
+                  setCoinError("");
+                }}
+                disabled={coinPlaying || busy}
+              />
+
+              <div className="coin-stats">
+                <div><span>YOUR WALLET</span><strong>{money(wallet?.balance)}</strong></div>
+                <div><span>POTENTIAL WIN</span><strong>{coinPotentialWin ? money(coinPotentialWin) : "—"}</strong></div>
+              </div>
+
+              {coinError && <div className="alert error">{coinError}</div>}
 
               <button
                 className="btn btn-primary big-btn"
                 type="button"
-                onClick={resetCoinFlip}
-                style={{ maxWidth: 560, width: "100%" }}
+                onClick={playCoinFlip}
+                disabled={coinPlaying || busy}
               >
+                {coinPlaying ? "Flipping..." : "Flip Coin"}
+              </button>
+
+              <p className="helper">Minimum stake: GHS 50.00 • Winning payout: 3× stake.</p>
+            </>
+          ) : (
+            <div className="coin-result-panel">
+              <div className="coin-result-icon">{coinResult.result === "HEADS" ? "👑" : "🪙"}</div>
+              <span className="eyebrow">ROUND RESULT</span>
+              <h2>{coinResult.result}</h2>
+              <p>
+                You chose <strong>{coinResult.choice}</strong> and {coinResult.outcome === "WIN" ? "won" : "lost"}.
+              </p>
+              <div className="coin-stats">
+                <div><span>STAKE</span><strong>{money(coinResult.stake)}</strong></div>
+                <div><span>PAYOUT</span><strong>{coinResult.payout ? money(coinResult.payout) : "GHS 0.00"}</strong></div>
+              </div>
+              <button className="btn btn-primary big-btn" type="button" onClick={resetCoinFlip}>
                 Play Again
               </button>
             </div>
           )}
         </div>
-      ) : game.key === "bottle" ? (
-        <>
-          <div className="package-heading">
-            <div>
-              <span className="eyebrow">FLIP THE BOTTLE</span>
-              <h2>CHOOSE YOUR STAKES</h2>
-              <p>Choose your stake. If you win, the round pays 2× your stake.</p>
-            </div>
-          </div>
-
-          <div className="package-grid">
-            {bottleStakes.map((item) => {
-              const active = selectedStake?.amount === item.amount;
-              return (
-                <button
-                  key={item.amount}
-                  type="button"
-                  className={`package-card ${active ? "selected-stake-card" : ""}`}
-                  onClick={() => {
-                    setSelectedStake(item);
-                    setBottleResult(null);
-                    setBottleError("");
-                  }}
-                >
-                  <div className="package-top">
-                    <div>
-                      <strong>GHS {item.amount}</strong>
-                      <span>{active ? "SELECTED" : "STAKE"}</span>
-                    </div>
-                    <i>🍾</i>
-                  </div>
-                  <h3>Potential win: GHS {item.win}</h3>
-                  <div className="package-tags">
-                    <span>2× PAYOUT</span>
-                    <span>INSTANT RESULT</span>
-                  </div>
-                  <div className="package-action">{active ? "✓ SELECTED" : "SELECT STAKE"}</div>
-                </button>
-              );
-            })}
-          </div>
-
-          {bottleError && <div className="alert error">{bottleError}</div>}
-
-          <div className="bottle-play-card" style={{marginTop:20,padding:24,borderRadius:24,background:"linear-gradient(135deg,#fff8ef,#fff)",border:"1px solid #f3dfc7",textAlign:"center"}}>
-            <div style={{fontSize:64,marginBottom:10,display:"inline-block",animation:bottlePlaying?"bottleSpin 0.65s linear infinite":"none"}}>🍾</div>
-            <h3 style={{margin:"8px 0 6px",fontSize:24}}>
-              {bottlePlaying ? "FLIPPING..." : bottleResult ? (bottleResult.outcome === "WIN" ? "YOU WON! 🎉" : "YOU LOST") : "Ready for the round?"}
-            </h3>
-            <p style={{margin:"0 auto 18px",maxWidth:520,color:"#667085"}}>
-              {bottlePlaying
-                ? "Your round is being completed securely."
-                : bottleResult
-                ? bottleResult.outcome === "WIN"
-                  ? `GHS ${bottleResult.stake} was staked and GHS ${bottleResult.payout} was paid back.`
-                  : `GHS ${bottleResult.stake} was staked. No payout was made this round.`
-                : selectedStake
-                ? `Selected stake: GHS ${selectedStake.amount}. Potential win: GHS ${selectedStake.win}.`
-                : "Select one of the three stakes above to play."}
-            </p>
-            {selectedStake && !bottleResult && (
-              <button className="btn btn-primary big-btn" type="button" disabled={bottlePlaying} onClick={playBottle}>
-                {bottlePlaying ? "Flipping Bottle..." : `Play GHS ${selectedStake.amount}`}
-              </button>
-            )}
-            {bottleResult && (
-              <button className="btn btn-primary big-btn" type="button" onClick={() => { setBottleResult(null); setSelectedStake(null); }}>
-                Play Another Round
-              </button>
-            )}
-          </div>
-
-          <style>{`@keyframes bottleSpin {0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.12)}100%{transform:rotate(360deg) scale(1)}}`}</style>
-        </>
-      ) : (
-        <>
-          {game.key === "football" && (
-            <div className="football-fixtures">
-              <div className="section-heading compact">
-                <div><span className="eyebrow">VIRTUAL FOOTBALL</span><h2>Today's Featured Teams</h2></div>
-              </div>
-              {footballMatches.map(([home, away]) => (
-                <div className="football-fixture" key={`${home}-${away}`}>
-                  <div><span>HOME</span><strong>{home}</strong></div>
-                  <b>VS</b>
-                  <div className="away"><span>AWAY</span><strong>{away}</strong></div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="package-heading">
-            <div>
-              <span className="eyebrow">CHOOSE YOUR PACKAGE</span>
-              <h2>Choose a package · No expiry · Manual processing</h2>
-            </div>
-          </div>
-
-          <div className="package-grid">
-            {PACKAGES.map((pkg) => (
-              <button key={pkg.price} className="package-card" type="button" onClick={() => onPackage(pkg.price)}>
-                <div className="package-top">
-                  <div><strong>GHS {pkg.price}</strong><span>AVAILABLE</span></div>
-                  <i>{pkg.icon}</i>
-                </div>
-                <h3>{pkg.predictions} prediction{pkg.predictions > 1 ? "s" : ""} per screenshot</h3>
-                <div className="package-tags"><span>{pkg.predictions} PREDICTION{pkg.predictions > 1 ? "S" : ""}</span><span>NO EXPIRY</span></div>
-                <div className="package-action">→ GET GHS {pkg.price}</div>
-              </button>
-            ))}
-          </div>
-
-          <div className="ai-prediction-card">
-            <div className="ai-icon">🎯</div>
-            <div>
-              <span className="eyebrow">SURE PREDICTION</span>
-              <h3>Send a screenshot for match analysis</h3>
-              <p>Upload a clear screenshot of the particular match. Your selected package is charged only after successful analysis.</p>
-            </div>
-            <button className="btn btn-primary" type="button" onClick={onPrediction}>Sure Prediction</button>
-          </div>
-        </>
       )}
     </section>
   );
 }
 
-function PredictionModal({ game, pkg, wallet, onClose, onSubmit, onCharged }) {
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [prediction, setPrediction] = useState(null);
-  const [analysisError, setAnalysisError] = useState("");
-  const [ocrText, setOcrText] = useState("");
-  const balance = Number(wallet?.balance || 0);
-  const price = Number(pkg?.price || 0);
 
-  function handleFile(e) {
-    const next = e.target.files?.[0];
-    if (!next) return;
-    setFile(next);
-    setPreview(URL.createObjectURL(next));
-    setSubmitted(false);
-    setPrediction(null);
-    setAnalysisError("");
-    setOcrText("");
-  }
+// =====================================================
+// ADMIN PANEL
+// =====================================================
 
-  async function analyzeScreenshot() {
-    if (!file || balance < price) return;
-    setAnalyzing(true);
-    setAnalysisError("");
-    setPrediction(null);
-    setOcrText("");
-    let worker;
-    try {
-      worker = await createWorker("eng");
-      const result = await worker.recognize(file);
-      const text = result?.data?.text || "";
-      if (!text.trim()) throw new Error("No readable text was found. Please upload a clearer betting screenshot.");
-      setOcrText(text);
-      const response = await fetch("/api/sure-prediction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error || "Prediction service is unavailable.");
-      if (!data?.prediction?.predicted_winner || data.prediction.predicted_winner === "Unable to determine") {
-        throw new Error("The screenshot was readable, but the teams or 1X2 odds could not be determined. Please upload a clearer match screenshot.");
-      }
+function AdminPanel({
+  onRefresh,
+}) {
+  const [users, setUsers] =
+    useState([]);
 
-      // Charge immediately after successful analysis and before revealing the result.
-      const { error: chargeError } = await supabase.rpc("consume_prediction_package", {
-        p_amount: price,
-        p_game: game?.title || game?.key || "Game",
-        p_prediction_count: Number(pkg?.predictions || 1),
-      });
+  const [adminBets, setAdminBets] =
+    useState([]);
 
-      if (chargeError) throw chargeError;
+  const [
+    adminTransactions,
+    setAdminTransactions,
+  ] = useState([]);
 
-      if (onCharged) await onCharged();
-      setPrediction(data.prediction);
-    } catch (err) {
-      setAnalysisError(err.message || "Could not analyze this screenshot.");
-    } finally {
-      if (worker) await worker.terminate();
-      setAnalyzing(false);
-    }
-  }
+  const [
+    manualWithdrawals,
+    setManualWithdrawals,
+  ] = useState([]);
 
-  const resultStyle = { marginTop: 18, padding: 18, borderRadius: 20, background: "linear-gradient(135deg,#f0fff7,#eef6ff)", border: "1px solid #d8e8df" };
-  const statStyle = { padding: 13, borderRadius: 14, background: "#fff", border: "1px solid #e5e7eb" };
+  const [
+    withdrawalNote,
+    setWithdrawalNote,
+  ] = useState("");
 
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="prediction-modal">
-        <button className="modal-close" type="button" onClick={onClose}>×</button>
-        <div className="ai-icon large">🎯</div>
-        <span className="eyebrow">{game.title} · SURE PREDICTION</span>
-        <h2>Submit your match screenshot</h2>
-        <p>Package: <strong>GHS {price}</strong> · <strong>{pkg?.predictions} prediction{pkg?.predictions > 1 ? "s" : ""}</strong></p>
-        <div className="prediction-wallet-check">
-          <div><span>WALLET</span><strong>{money(balance)}</strong></div>
-          <div><span>PACKAGE</span><strong>GHS {price}</strong></div>
-          <div><span>PREDICTIONS</span><strong>{pkg?.predictions}</strong></div>
-        </div>
-        {balance < price && <div className="alert error">Insufficient wallet balance. You need GHS {price} before you can submit.</div>}
-        <label className="upload-box">
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFile} />
-          {preview ? <img src={preview} alt="Selected match screenshot" /> : <><strong>Choose screenshot</strong><span>PNG, JPG or WEBP</span></>}
-        </label>
-        {!prediction && <button className="btn btn-primary big-btn" type="button" disabled={!file || balance < price || analyzing} onClick={analyzeScreenshot}>{analyzing ? "Reading screenshot..." : "Analyze Screenshot"}</button>}
-        {analysisError && <div className="alert error">{analysisError}</div>}
-        {prediction && (
-          <div style={resultStyle}>
-            <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",marginBottom:14}}>
-              <span className="eyebrow">SURE PREDICTION RESULT</span>
-              <strong style={{padding:"7px 11px",borderRadius:999,background:"#fff"}}>{prediction.confidence || "Medium"}</strong>
-            </div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,fontWeight:800,fontSize:17,marginBottom:15}}>
-              <span>{prediction.home_team}</span><span style={{opacity:.55}}>VS</span><span>{prediction.away_team}</span>
-            </div>
-            <div style={{padding:16,borderRadius:16,background:"#fff",marginBottom:12}}><span>🏆 WINNER</span><br/><strong style={{fontSize:24}}>{prediction.predicted_winner}</strong></div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
-              <div style={statStyle}><span>⚽ GOAL PREDICTION</span><br/><strong>{prediction.goal_prediction || "Unavailable"}</strong></div>
-              <div style={statStyle}><span>📊 OVER/UNDER</span><br/><strong>{prediction.over_under || "Unavailable"}</strong></div>
-              <div style={statStyle}><span>🤝 BOTH TEAMS TO SCORE</span><br/><strong>{prediction.btts || "Unavailable"}</strong></div>
-              <div style={statStyle}><span>🎯 POSSIBLE SCORE</span><br/><strong>{prediction.possible_score || "Unavailable"}</strong></div>
-            </div>
-            {prediction.odds && <div style={{marginTop:12,fontSize:13,fontWeight:700}}>Displayed odds: {prediction.odds}</div>}
-            <div style={{marginTop:12,lineHeight:1.5}}>{prediction.reason}</div>
-            <div style={{marginTop:12,fontSize:12,opacity:.72}}>These are automated market-based predictions, not guaranteed match results. Goal and BTTS fields are estimates when those markets are not visible.</div>
-            {!submitted && <button className="btn btn-primary big-btn" type="button" style={{marginTop:16}} onClick={() => { setSubmitted(true); onSubmit(); }}>Submit Prediction Request</button>}
-          </div>
-        )}
-        {submitted && <div className="prediction-status">Prediction result revealed and package charged successfully. The activity has been recorded.</div>}
-        {ocrText && <details className="ocr-details"><summary>Show detected screenshot text</summary><pre>{ocrText}</pre></details>}
-      </div>
-    </div>
-  );
-}
+  const [userId, setUserId] =
+    useState("");
 
-function AdminPanel({ onRefresh }) {
-  const [users, setUsers] = useState([]);
-  const [adminBets, setAdminBets] = useState([]);
-  const [adminTransactions, setAdminTransactions] = useState([]);
-  const [manualWithdrawals, setManualWithdrawals] = useState([]);
-  const [predictionActivity, setPredictionActivity] = useState([]);
-  const [withdrawalNote, setWithdrawalNote] = useState("");
-  const [userId, setUserId] = useState("");
-  const [amount, setAmount] = useState("");
-  const [settleBetId, setSettleBetId] = useState("");
-  const [result, setResult] = useState("won");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [msg, setMsg] = useState("");
+  const [amount, setAmount] =
+    useState("");
+
+  const [
+    settleBetId,
+    setSettleBetId,
+  ] = useState("");
+
+  const [result, setResult] =
+    useState("won");
+
+  const [busy, setBusy] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [msg, setMsg] =
+    useState("");
 
   useEffect(() => {
     loadAdmin();
@@ -1970,33 +3153,71 @@ function AdminPanel({ onRefresh }) {
   async function loadAdmin() {
     setError("");
 
-    const [u, b, t, w, a] = await Promise.all([
-      supabase.rpc("admin_get_users"),
-      supabase.rpc("admin_get_bets"),
-      supabase.rpc("admin_get_transactions"),
-      supabase.rpc("admin_get_manual_withdrawals"),
-      supabase.from("prediction_activity").select("*").order("created_at", { ascending: false }).limit(50),
+    const [
+      u,
+      b,
+      t,
+      w,
+    ] = await Promise.all([
+      supabase.rpc(
+        "admin_get_users"
+      ),
+
+      supabase.rpc(
+        "admin_get_bets"
+      ),
+
+      supabase.rpc(
+        "admin_get_transactions"
+      ),
+
+      supabase.rpc(
+        "admin_get_manual_withdrawals"
+      ),
+
     ]);
 
-    const firstError = u.error || b.error || t.error || w.error || a.error;
+    const firstError =
+      u.error ||
+      b.error ||
+      t.error ||
+      w.error;
 
     if (firstError) {
-      setError(firstError.message || "Admin data could not be loaded.");
+      setError(
+        firstError.message ||
+          "Admin data could not be loaded."
+      );
       return;
     }
 
     setUsers(u.data || []);
     setAdminBets(b.data || []);
-    setAdminTransactions(t.data || []);
-    setManualWithdrawals(w.data || []);
-    setPredictionActivity(a.data || []);
+    setAdminTransactions(
+      t.data || []
+    );
+    setManualWithdrawals(
+      w.data || []
+    );
   }
 
-  async function adjustWallet(direction) {
-    const value = Number(amount);
+  // =========================
+  // ADMIN WALLET
+  // =========================
+  async function adjustWallet(
+    direction
+  ) {
+    const value =
+      Number(amount);
 
-    if (!userId || !value || value <= 0) {
-      setError("Choose a user and enter a valid amount.");
+    if (
+      !userId ||
+      !value ||
+      value <= 0
+    ) {
+      setError(
+        "Choose a user and enter a valid amount."
+      );
       return;
     }
 
@@ -2009,28 +3230,41 @@ function AdminPanel({ onRefresh }) {
           ? "admin_credit_wallet"
           : "admin_debit_wallet";
 
-      const { error: e } = await supabase.rpc(fn, {
-        p_user_id: userId,
-        p_amount: value,
-        p_description: `Admin ${direction}`,
-      });
+      const { error: e } =
+        await supabase.rpc(fn, {
+          p_user_id: userId,
+          p_amount: value,
+          p_description: `Admin ${direction}`,
+        });
 
       if (e) throw e;
 
       setAmount("");
-      setMsg(`Wallet ${direction} successful.`);
+
+      setMsg(
+        `Wallet ${direction} successful.`
+      );
+
       await loadAdmin();
       await onRefresh();
     } catch (e) {
-      setError(e.message || "Wallet adjustment failed.");
+      setError(
+        e.message ||
+          "Wallet adjustment failed."
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  // =========================
+  // SETTLE BET
+  // =========================
   async function settle() {
     if (!settleBetId) {
-      setError("Enter the bet ID.");
+      setError(
+        "Enter the bet ID."
+      );
       return;
     }
 
@@ -2038,51 +3272,132 @@ function AdminPanel({ onRefresh }) {
     setError("");
 
     try {
-      const { error: e } = await supabase.rpc("admin_settle_bet", {
-        p_bet_id: settleBetId,
-        p_result: result,
-      });
+      const { error: e } =
+        await supabase.rpc(
+          "admin_settle_bet",
+          {
+            p_bet_id:
+              settleBetId,
+            p_result: result,
+          }
+        );
 
       if (e) throw e;
 
       setSettleBetId("");
-      setMsg("Bet settlement completed.");
+
+      setMsg(
+        "Bet settlement completed."
+      );
+
       await loadAdmin();
       await onRefresh();
     } catch (e) {
-      setError(e.message || "Settlement failed.");
+      setError(
+        e.message ||
+          "Settlement failed."
+      );
     } finally {
       setBusy(false);
     }
   }
 
-  async function processManualWithdrawal(id, action) {
+  // =========================
+  // MARK WITHDRAWAL PAID
+  // =========================
+  async function processManualWithdrawal(
+    id,
+    action
+  ) {
     setBusy(true);
     setError("");
 
     try {
-      const { error: e } = await supabase.rpc(
-        "admin_mark_manual_withdrawal",
-        {
-          p_request_id: id,
-          p_action: action,
-          p_note: withdrawalNote.trim() || null,
-        }
-      );
+      // First update the withdrawal itself.
+      const { error: e } =
+        await supabase.rpc(
+          "admin_mark_manual_withdrawal",
+          {
+            p_request_id: id,
+            p_action: action,
+            p_note:
+              withdrawalNote.trim() ||
+              null,
+          }
+        );
 
       if (e) throw e;
 
+      // Only create the notification
+      // when the admin marked it PAID.
+      if (action === "paid") {
+        const {
+          error: notificationError,
+        } = await supabase.rpc(
+          "create_withdrawal_paid_notification",
+          {
+            p_request_id: id,
+          }
+        );
+
+        if (notificationError) {
+          console.error(
+            "Notification creation failed:",
+            notificationError
+          );
+
+          // Do not undo the payout just
+          // because the notification failed.
+          setMsg(
+            "Withdrawal marked as paid, but the user notification could not be created."
+          );
+        }
+
+        // Fire the Arkesel SMS to the specific user.
+        // Runs for every withdrawal, no hard-coded ID.
+        try {
+          const smsResult =
+            await sendWithdrawalSMS(id);
+
+          if (!smsResult?.success) {
+            console.error(
+              "Withdrawal SMS failed:",
+              smsResult?.error
+            );
+          } else {
+            console.log(
+              "Withdrawal SMS sent successfully.",
+              smsResult
+            );
+          }
+        } catch (smsError) {
+          // Never let an SMS failure break the payout flow.
+          console.error(
+            "Withdrawal SMS error:",
+            smsError
+          );
+        }
+      }
+
       setWithdrawalNote("");
-      setMsg(
-        action === "paid"
-          ? "Withdrawal marked as paid."
-          : "Withdrawal rejected and wallet refunded."
-      );
+
+      if (action === "paid") {
+        setMsg(
+          "Withdrawal marked as paid. The user's notification has been created."
+        );
+      } else {
+        setMsg(
+          "Withdrawal rejected and wallet refunded."
+        );
+      }
 
       await loadAdmin();
       await onRefresh();
     } catch (e) {
-      setError(e.message || "Withdrawal update failed.");
+      setError(
+        e.message ||
+          "Withdrawal update failed."
+      );
     } finally {
       setBusy(false);
     }
@@ -2093,160 +3408,89 @@ function AdminPanel({ onRefresh }) {
       <PageTitle
         eyebrow="CONTROL CENTRE"
         title="Admin Dashboard"
-        text="Manage users, wallets, bets and manual withdrawals."
+        text="Manage users, wallets, game bets and manual withdrawals."
       />
 
-      {error && <div className="alert error">{error}</div>}
-      {msg && <div className="alert success">{msg}</div>}
+      {error && (
+        <div className="alert error">
+          {error}
+        </div>
+      )}
+
+      {msg && (
+        <div className="alert success">
+          {msg}
+        </div>
+      )}
 
       <div className="admin-stats">
         <div className="admin-stat blue-stat">
           <span>USERS</span>
-          <strong>{users.length}</strong>
-        </div>
-        <div className="admin-stat green-stat">
-          <span>BETS</span>
-          <strong>{adminBets.length}</strong>
-        </div>
-        <div className="admin-stat orange-stat">
-          <span>TRANSACTIONS</span>
-          <strong>{adminTransactions.length}</strong>
-        </div>
-        <div className="admin-stat purple-stat">
-          <span>WITHDRAWALS</span>
           <strong>
-            {manualWithdrawals.filter((w) => w.status === "pending").length}
+            {users.length}
           </strong>
         </div>
-        <div className="admin-stat blue-stat">
-          <span>SURE PREDICTION ACTIVITY</span>
-          <strong>{predictionActivity.length}</strong>
+
+        <div className="admin-stat green-stat">
+          <span>BETS</span>
+          <strong>
+            {adminBets.length}
+          </strong>
         </div>
+
+        <div className="admin-stat orange-stat">
+          <span>
+            TRANSACTIONS
+          </span>
+
+          <strong>
+            {
+              adminTransactions.length
+            }
+          </strong>
+        </div>
+
+        <div className="admin-stat purple-stat">
+          <span>
+            WITHDRAWALS
+          </span>
+
+          <strong>
+            {
+              manualWithdrawals.filter(
+                (w) =>
+                  w.status ===
+                  "pending"
+              ).length
+            }
+          </strong>
+        </div>
+
       </div>
 
+
+      {/* WITHDRAWALS */}
       <div className="admin-card">
         <div className="admin-card-head">
           <div>
-            <span className="eyebrow">LIVE ACTIVITY</span>
-            <h3>Sure Prediction Notifications</h3>
+            <span className="eyebrow">
+              MANUAL PAYOUTS
+            </span>
+
+            <h3>
+              Withdrawal Requests
+            </h3>
           </div>
-          <span className="count-badge">{predictionActivity.length} recent</span>
-        </div>
 
-        {predictionActivity.length === 0 ? (
-          <div className="admin-empty">No Sure Prediction activity yet.</div>
-        ) : (
-          <div className="admin-table">
-            {predictionActivity.slice(0, 20).map((activity) => (
-              <div className="admin-table-row" key={activity.id}>
-                <div>
-                  <strong>
-                    {activity.activity_type === "prediction_viewed"
-                      ? "👁️ Prediction viewed"
-                      : activity.activity_type === "prediction_submitted"
-                      ? "📸 Screenshot submitted"
-                      : activity.activity_type === "package_selected"
-                      ? "💰 Package selected"
-                      : String(activity.activity_type || "Activity")}
-                  </strong>
-                  <span>
-                    {activity.game || "Unknown game"} • User {String(activity.user_id || "").slice(0, 8)}
-                    {activity.package_price ? ` • GHS ${Number(activity.package_price).toLocaleString("en-GH")}` : ""}
-                  </span>
-                </div>
-                <div className="admin-bet-right">
-                  <span>{activity.prediction_count ? `${activity.prediction_count} prediction${activity.prediction_count > 1 ? "s" : ""}` : ""}</span>
-                  <span>{fmtDate(activity.created_at)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="admin-grid">
-        <div className="form-card">
-          <span className="eyebrow">WALLET MANAGEMENT</span>
-          <h3>Adjust user wallet</h3>
-          <p>Credit or debit a selected user's wallet.</p>
-
-          <select
-            className="field"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-          >
-            <option value="">Select user</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.full_name || u.email || u.id}
-              </option>
-            ))}
-          </select>
-
-          <input
-            className="field"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-
-          <div className="admin-button-row">
-            <button
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() => adjustWallet("credit")}
-            >
-              Credit wallet
-            </button>
-            <button
-              className="btn btn-outline"
-              disabled={busy}
-              onClick={() => adjustWallet("debit")}
-            >
-              Debit wallet
-            </button>
-          </div>
-        </div>
-
-        <div className="form-card">
-          <span className="eyebrow">BET MANAGEMENT</span>
-          <h3>Settle a bet</h3>
-          <p>Use the bet UUID and choose the result.</p>
-
-          <input
-            className="field"
-            placeholder="Bet UUID"
-            value={settleBetId}
-            onChange={(e) => setSettleBetId(e.target.value)}
-          />
-
-          <select
-            className="field"
-            value={result}
-            onChange={(e) => setResult(e.target.value)}
-          >
-            <option value="won">Won</option>
-            <option value="lost">Lost</option>
-            <option value="void">Void</option>
-          </select>
-
-          <button className="btn btn-primary big-btn" disabled={busy} onClick={settle}>
-            Settle bet
-          </button>
-        </div>
-      </div>
-
-      <div className="admin-card">
-        <div className="admin-card-head">
-          <div>
-            <span className="eyebrow">MANUAL PAYOUTS</span>
-            <h3>Withdrawal Requests</h3>
-          </div>
           <span className="count-badge">
-            {manualWithdrawals.filter((w) => w.status === "pending").length} pending
+            {
+              manualWithdrawals.filter(
+                (w) =>
+                  w.status ===
+                  "pending"
+              ).length
+            }{" "}
+            pending
           </span>
         </div>
 
@@ -2254,140 +3498,292 @@ function AdminPanel({ onRefresh }) {
           className="field"
           placeholder="Optional admin note"
           value={withdrawalNote}
-          onChange={(e) => setWithdrawalNote(e.target.value)}
+          onChange={(e) =>
+            setWithdrawalNote(
+              e.target.value
+            )
+          }
         />
 
-        {manualWithdrawals.length === 0 ? (
-          <div className="admin-empty">No withdrawal requests.</div>
+        {manualWithdrawals.length ===
+        0 ? (
+          <div className="admin-empty">
+            No withdrawal requests.
+          </div>
         ) : (
           <div className="admin-list">
-            {manualWithdrawals.map((w) => (
-              <div className="admin-withdrawal" key={w.id}>
-                <div className="admin-withdrawal-main">
-                  <div className="amount-big">{money(w.amount)}</div>
-                  <strong>{w.user_name || w.user_email || w.user_id}</strong>
-                  <span>
-                    {w.provider} • {w.account_name} • {w.phone}
-                  </span>
-                  <small>{fmtDate(w.created_at)}</small>
-                  {w.admin_note && <small>Note: {w.admin_note}</small>}
-                </div>
+            {manualWithdrawals.map(
+              (w) => (
+                <div
+                  className="admin-withdrawal"
+                  key={w.id}
+                >
+                  <div className="admin-withdrawal-main">
+                    <div className="amount-big">
+                      {money(
+                        w.amount
+                      )}
+                    </div>
 
-                <div className="admin-withdrawal-actions">
-                  <span
-                    className={`status-pill status-${String(
-                      w.status || "pending"
-                    ).toLowerCase()}`}
-                  >
-                    {String(w.status || "pending").toUpperCase()}
-                  </span>
+                    <strong>
+                      {w.user_name ||
+                        w.user_email ||
+                        w.user_id}
+                    </strong>
 
-                  {w.status === "pending" && (
-                    <>
-                      <button
-                        className="btn btn-primary"
-                        disabled={busy}
-                        onClick={() =>
-                          processManualWithdrawal(w.id, "paid")
+                    <span>
+                      {w.provider} •{" "}
+                      {
+                        w.account_name
+                      }{" "}
+                      •{" "}
+                      {w.phone}
+                    </span>
+
+                    <small>
+                      {fmtDate(
+                        w.created_at
+                      )}
+                    </small>
+
+                    {w.admin_note && (
+                      <small>
+                        Note:{" "}
+                        {
+                          w.admin_note
                         }
-                      >
-                        Mark Paid
-                      </button>
-                      <button
-                        className="btn btn-outline"
-                        disabled={busy}
-                        onClick={() =>
-                          processManualWithdrawal(w.id, "rejected")
-                        }
-                      >
-                        Reject & Refund
-                      </button>
-                    </>
-                  )}
+                      </small>
+                    )}
+                  </div>
+
+                  <div className="admin-withdrawal-actions">
+                    <span
+                      className={`status-pill status-${String(
+                        w.status ||
+                          "pending"
+                      ).toLowerCase()}`}
+                    >
+                      {String(
+                        w.status ||
+                          "pending"
+                      ).toUpperCase()}
+                    </span>
+
+                    {w.status ===
+                      "pending" && (
+                      <>
+                        <button
+                          className="btn btn-primary"
+                          disabled={
+                            busy
+                          }
+                          onClick={() =>
+                            processManualWithdrawal(
+                              w.id,
+                              "paid"
+                            )
+                          }
+                        >
+                          Mark Paid
+                        </button>
+
+                        <button
+                          className="btn btn-outline"
+                          disabled={
+                            busy
+                          }
+                          onClick={() =>
+                            processManualWithdrawal(
+                              w.id,
+                              "rejected"
+                            )
+                          }
+                        >
+                          Reject & Refund
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
         )}
       </div>
 
+      {/* USERS */}
       <div className="admin-card">
         <div className="admin-card-head">
           <div>
-            <span className="eyebrow">USERS</span>
-            <h3>Registered Users</h3>
+            <span className="eyebrow">
+              USERS
+            </span>
+
+            <h3>
+              Registered Users
+            </h3>
           </div>
         </div>
 
         {users.length === 0 ? (
-          <div className="admin-empty">No users returned.</div>
+          <div className="admin-empty">
+            No users returned.
+          </div>
         ) : (
           <div className="admin-table">
             {users.map((u) => (
-              <div className="admin-table-row" key={u.id}>
+              <div
+                className="admin-table-row"
+                key={u.id}
+              >
                 <div>
-                  <strong>{u.full_name || "Unnamed user"}</strong>
-                  <span>{u.email || "No email"}</span>
+                  <strong>
+                    {u.full_name ||
+                      "Unnamed user"}
+                  </strong>
+
+                  <span>
+                    {u.email ||
+                      "No email"}
+                  </span>
                 </div>
-                <span className="role-pill">{u.role || "user"}</span>
+
+                <span className="role-pill">
+                  {u.role ||
+                    "user"}
+                </span>
               </div>
             ))}
           </div>
         )}
       </div>
 
+      {/* BET ACTIVITY */}
       <div className="admin-card">
         <div className="admin-card-head">
           <div>
-            <span className="eyebrow">BET ACTIVITY</span>
-            <h3>Recent Bets</h3>
+            <span className="eyebrow">
+              BET ACTIVITY
+            </span>
+
+            <h3>
+              Recent Bets
+            </h3>
           </div>
         </div>
 
-        {adminBets.length === 0 ? (
-          <div className="admin-empty">No bets returned.</div>
+        {adminBets.length ===
+        0 ? (
+          <div className="admin-empty">
+            No bets returned.
+          </div>
         ) : (
           <div className="admin-table">
-            {adminBets.slice(0, 20).map((b) => (
-              <div className="admin-table-row" key={b.id}>
-                <div>
-                  <strong>#{String(b.id).slice(0, 8)}</strong>
-                  <span>User: {String(b.user_id).slice(0, 8)}</span>
+            {adminBets
+              .slice(0, 20)
+              .map((b) => (
+                <div
+                  className="admin-table-row"
+                  key={b.id}
+                >
+                  <div>
+                    <strong>
+                      #
+                      {String(
+                        b.id
+                      ).slice(
+                        0,
+                        8
+                      )}
+                    </strong>
+
+                    <span>
+                      User:{" "}
+                      {String(
+                        b.user_id
+                      ).slice(
+                        0,
+                        8
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="admin-bet-right">
+                    <span>
+                      {String(
+                        b.status ||
+                          "pending"
+                      ).toUpperCase()}
+                    </span>
+
+                    <strong>
+                      {money(
+                        b.stake
+                      )}
+                    </strong>
+                  </div>
                 </div>
-                <div className="admin-bet-right">
-                  <span>{String(b.status || "pending").toUpperCase()}</span>
-                  <strong>{money(b.stake)}</strong>
-                </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>
 
+      {/* TRANSACTIONS */}
       <div className="admin-card">
         <div className="admin-card-head">
           <div>
-            <span className="eyebrow">WALLET ACTIVITY</span>
-            <h3>Recent Transactions</h3>
+            <span className="eyebrow">
+              WALLET ACTIVITY
+            </span>
+
+            <h3>
+              Recent Transactions
+            </h3>
           </div>
         </div>
 
-        {adminTransactions.length === 0 ? (
-          <div className="admin-empty">No transactions returned.</div>
+        {adminTransactions.length ===
+        0 ? (
+          <div className="admin-empty">
+            No transactions
+            returned.
+          </div>
         ) : (
           <div className="admin-table">
-            {adminTransactions.slice(0, 20).map((t) => (
-              <div className="admin-table-row" key={t.id}>
-                <div>
-                  <strong>{t.type || "Transaction"}</strong>
-                  <span>{t.description || ""}</span>
+            {adminTransactions
+              .slice(0, 20)
+              .map((t) => (
+                <div
+                  className="admin-table-row"
+                  key={t.id}
+                >
+                  <div>
+                    <strong>
+                      {t.type ||
+                        "Transaction"}
+                    </strong>
+
+                    <span>
+                      {t.description ||
+                        ""}
+                    </span>
+                  </div>
+
+                  <div className="admin-bet-right">
+                    <strong>
+                      {money(
+                        t.amount
+                      )}
+                    </strong>
+
+                    <span>
+                      {fmtDate(
+                        t.created_at
+                      )}
+                    </span>
+                  </div>
                 </div>
-                <div className="admin-bet-right">
-                  <strong>{money(t.amount)}</strong>
-                  <span>{fmtDate(t.created_at)}</span>
-                </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </div>
