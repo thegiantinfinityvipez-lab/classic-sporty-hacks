@@ -1,554 +1,240 @@
-function cleanText(value) {
+function clean(value) {
   return String(value || "")
-    .replace(/\r/g, "")
-    .replace(/[|]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function unique(items) {
-  return [...new Set(items.filter(Boolean))];
-}
+function extractTeams(text) {
+  const match = text.match(
+    /([A-Za-z][A-Za-z .'-]{1,35}?)\s+(?:vs?\.?|versus)\s+([A-Za-z][A-Za-z .'-]{1,35}?)(?=\s+(?:1\s*[:.]?\s*\d|\d{1,3}[.,]\d{1,2}\b|odds\b)|$)/i
+  );
 
-function titleCase(value) {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b([a-z])/g, (m) => m.toUpperCase());
-}
-
-// Convert OCR odds into usable decimal odds.
-function normalizeOdd(raw, isDraw = false) {
-  if (raw === null || raw === undefined) return null;
-
-  let value = String(raw)
-    .trim()
-    .replace(",", ".")
-    .replace(/[^\d.]/g, "");
-
-  if (!value) return null;
-
-  // Normal decimal odds: 11.89, 1.24, 7.75
-  if (value.includes(".")) {
-    const number = Number(value);
-
-    if (
-      Number.isFinite(number) &&
-      number >= 1.01 &&
-      number <= 100
-    ) {
-      return Number(number.toFixed(2));
-    }
+  if (match) {
+    return [
+      match[1].trim(),
+      match[2].trim()
+    ];
   }
 
-  const digits = value.replace(/\D/g, "");
+  const simpleMatch = text.match(
+    /([A-Za-z][A-Za-z .'-]{1,35})\s+(?:vs?\.?|versus)\s+([A-Za-z][A-Za-z .'-]{1,35})/i
+  );
 
-  /*
-    OCR can turn:
-
-    7.75 -> 7758
-
-    The final 8 is commonly an OCR artifact.
-    In the X/draw position, try the first 3 digits first.
-  */
-  if (isDraw && digits.length === 4) {
-    const firstThree = Number(
-      `${digits[0]}.${digits.slice(1, 3)}`
-    );
-
-    if (
-      Number.isFinite(firstThree) &&
-      firstThree >= 1.01 &&
-      firstThree <= 30
-    ) {
-      return Number(firstThree.toFixed(2));
-    }
-  }
-
-  // 775 -> 7.75
-  if (digits.length === 3) {
-    const possible = Number(
-      `${digits[0]}.${digits.slice(1)}`
-    );
-
-    if (
-      Number.isFinite(possible) &&
-      possible >= 1.01 &&
-      possible <= 100
-    ) {
-      return Number(possible.toFixed(2));
-    }
-  }
-
-  // Four digit OCR fallback.
-  if (digits.length === 4) {
-    const possible = Number(
-      `${digits.slice(0, 2)}.${digits.slice(2)}`
-    );
-
-    if (
-      Number.isFinite(possible) &&
-      possible >= 1.01 &&
-      possible <= 100
-    ) {
-      return Number(possible.toFixed(2));
-    }
-  }
-
-  return null;
+  return simpleMatch
+    ? [simpleMatch[1].trim(), simpleMatch[2].trim()]
+    : ["Home Team", "Away Team"];
 }
 
 function extractOdds(text) {
-  const source = String(text || "");
-  const results = [];
+  const normalized = text
+    .replace(/[|]/g, " ")
+    .replace(/,/g, ".");
 
-  // First capture normal decimal odds.
-  const decimalRegex = /\b\d{1,3}[.,]\d{1,2}\b/g;
-
-  let match;
-
-  while ((match = decimalRegex.exec(source))) {
-    const value = normalizeOdd(match[0]);
-
-    if (value !== null) {
-      results.push({
-        value,
-        index: match.index,
-      });
-    }
-  }
-
-  /*
-    Capture the draw/X odd.
-
-    Example:
-    X 7758
-
-    7758 -> 7.75
-  */
-  const xPattern =
-    /\bX\b\s*[:.)-]?\s*(\d{3,4})\b/i;
-
-  const xMatch = source.match(xPattern);
-
-  if (xMatch) {
-    const value = normalizeOdd(xMatch[1], true);
-
-    if (value !== null) {
-      results.push({
-        value,
-        index: xMatch.index,
-        isDraw: true,
-      });
-    }
-  }
-
-  /*
-    Capture a standard:
-
-    1 11.89 X 7758 2 1.24
-  */
-  const labelledPattern =
-    /\b1\b\s*[:.)-]?\s*([0-9]{1,4}(?:[.,][0-9]{1,2})?)\s*(?:X|x)\s*[:.)-]?\s*([0-9]{1,4}(?:[.,][0-9]{1,2})?)\s*(?:2)\s*[:.)-]?\s*([0-9]{1,4}(?:[.,][0-9]{1,2})?)/;
-
-  const labelled = source.match(labelledPattern);
-
-  if (labelled) {
-    const home = normalizeOdd(labelled[1]);
-    const draw = normalizeOdd(labelled[2], true);
-    const away = normalizeOdd(labelled[3]);
-
-    if (home !== null) {
-      results.push({
-        value: home,
-        label: "home",
-      });
-    }
-
-    if (draw !== null) {
-      results.push({
-        value: draw,
-        label: "draw",
-      });
-    }
-
-    if (away !== null) {
-      results.push({
-        value: away,
-        label: "away",
-      });
-    }
-  }
-
-  // Remove duplicate odds.
-  const final = [];
-  const seen = new Set();
-
-  for (const item of results) {
-    const key = `${item.value}`;
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      final.push(item);
-    }
-  }
-
-  return final;
-}
-
-function extractTeams(text) {
-  const source = String(text || "");
-
-  /*
-    Most important format:
-
-    Elche CF 1X2 Real Madrid
-  */
-  const direct = source.match(
-    /([A-Za-zÀ-ÿ0-9 .&'’_-]{2,40})\s+1\s*X\s*2\s+([A-Za-zÀ-ÿ0-9 .&'’_-]{2,40})/i
+  // Prefer odds written beside 1, X and 2.
+  const labeled = normalized.match(
+    /\b1\s*[:.]?\s*(\d{1,3}\.\d{1,2})\s+X\s*[:.]?\s*(\d{1,3}\.\d{1,2})\s+2\s*[:.]?\s*(\d{1,3}\.\d{1,2})/i
   );
 
-  if (direct) {
-    return [
-      titleCase(direct[1]),
-      titleCase(direct[2]),
-    ];
-  }
+  if (labeled) {
+    const odds = labeled.slice(1).map(Number);
 
-  const rawLines = source
-    .split("\n")
-    .map((line) =>
-      line
-        .replace(/[^A-Za-zÀ-ÿ0-9 .&'’_-]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-    )
-    .filter(Boolean);
-
-  const candidates = [];
-
-  for (const line of rawLines) {
-    const parts = line.split(
-      /\s+(?:vs?|versus)\s+/i
-    );
-
-    if (parts.length === 2) {
-      return [
-        titleCase(parts[0]),
-        titleCase(parts[1]),
-      ];
-    }
-
-    if (
-      line.length >= 3 &&
-      line.length <= 45 &&
-      !/\d/.test(line)
-    ) {
-      candidates.push(titleCase(line));
-    }
-  }
-
-  const compact = cleanText(source);
-
-  const vs = compact.match(
-    /(.{2,40})\s+(?:vs?|versus)\s+(.{2,40})/i
-  );
-
-  if (vs) {
-    return [
-      titleCase(vs[1]),
-      titleCase(vs[2]),
-    ];
-  }
-
-  const usable = unique(candidates);
-
-  if (usable.length >= 2) {
-    return [
-      usable[0],
-      usable[1],
-    ];
-  }
-
-  return [
-    "Unable to read home team",
-    "Unable to read away team",
-  ];
-}
-
-function extractGoalMarket(text) {
-  for (const line of String(text || "").split("\n")) {
-    const match = line.match(
-      /(?:over|under)\s*(\d+(?:[.,]\d+)?)/i
-    );
-
-    if (match) {
+    if (odds.every(value => value >= 1.01 && value <= 100)) {
       return {
-        line: Number(
-          match[1].replace(",", ".")
-        ),
-        side: /over/i.test(line)
-          ? "Over"
-          : "Under",
+        home: odds[0],
+        draw: odds[1],
+        away: odds[2]
       };
     }
   }
 
+  // Support layouts such as: 1 1.35 X 4.50 2 8.00.
+  const compact = normalized.match(
+    /\b1\s+(\d{1,3}\.\d{1,2})\s+X\s+(\d{1,3}\.\d{1,2})\s+2\s+(\d{1,3}\.\d{1,2})/i
+  );
+
+  if (compact) {
+    const odds = compact.slice(1).map(Number);
+
+    if (odds.every(value => value >= 1.01 && value <= 100)) {
+      return {
+        home: odds[0],
+        draw: odds[1],
+        away: odds[2]
+      };
+    }
+  }
+
+  // Fall back to three consecutive decimal odds.
+  // Only use this when the OCR did not preserve the labels.
+  const numbers = [
+    ...normalized.matchAll(/\b(\d{1,3}\.\d{1,2})\b/g)
+  ]
+    .map(match => Number(match[1]))
+    .filter(value => value >= 1.01 && value <= 100);
+
+  if (numbers.length >= 3) {
+    return {
+      home: numbers[0],
+      draw: numbers[1],
+      away: numbers[2]
+    };
+  }
+
+  if (numbers.length === 2) {
+    return {
+      home: numbers[0],
+      draw: null,
+      away: numbers[1]
+    };
+  }
+
   return null;
 }
 
-function buildPrediction(text) {
-  const source = String(text || "");
+function calculateProbability(odds) {
+  const outcomes = [
+    { key: "home", odds: odds.home },
+    ...(odds.draw !== null
+      ? [{ key: "draw", odds: odds.draw }]
+      : []),
+    { key: "away", odds: odds.away }
+  ];
 
-  const odds = extractOdds(source);
+  // Raw implied probabilities include the bookmaker's margin.
+  const totalImplied = outcomes.reduce(
+    (sum, outcome) => sum + 1 / outcome.odds,
+    0
+  );
 
-  const [homeTeam, awayTeam] =
-    extractTeams(source);
+  // Normalize them so the estimated percentages add up to 100%.
+  return outcomes.map(outcome => ({
+    ...outcome,
+    probability: (1 / outcome.odds / totalImplied) * 100
+  }));
+}
 
-  if (odds.length < 2) {
+function makePrediction(text) {
+  const [home, away] = extractTeams(text);
+  const odds = extractOdds(text);
+
+  if (!odds) {
     return {
-      home_team: homeTeam,
-      away_team: awayTeam,
+      home_team: home,
+      away_team: away,
       predicted_winner: "Unable to determine",
-      market: "1X2",
-      confidence: "Low",
-      odds: "",
       goal_prediction: "Unavailable",
       over_under: "Unavailable",
       btts: "Unavailable",
       possible_score: "Unavailable",
+      confidence: "Unavailable",
+      estimated_probability: "Unavailable",
+      odds: "Not reliably detected",
       reason:
-        "The screenshot did not contain enough readable betting odds. Please upload a clearer screenshot showing the teams and 1X2 odds.",
+        "The screenshot did not contain clearly readable match odds. Upload a clearer screenshot showing the teams and their 1X2 odds."
     };
   }
 
-  const homeItem = odds.find(
-    (item) => item.label === "home"
+  const probabilities = calculateProbability(odds);
+
+  const favourite = probabilities.reduce(
+    (lowest, outcome) =>
+      outcome.odds < lowest.odds ? outcome : lowest,
+    probabilities[0]
   );
 
-  const drawItem = odds.find(
-    (item) => item.label === "draw"
-  );
+  let winner;
+  let score;
 
-  const awayItem = odds.find(
-    (item) => item.label === "away"
-  );
-
-  let homeOdds;
-  let drawOdds;
-  let awayOdds;
-
-  if (
-    homeItem &&
-    drawItem &&
-    awayItem
-  ) {
-    homeOdds = homeItem.value;
-    drawOdds = drawItem.value;
-    awayOdds = awayItem.value;
+  if (favourite.key === "home") {
+    winner = home;
+    score = odds.home < 1.5 ? "2-0 (estimate)" : "2-1 (estimate)";
+  } else if (favourite.key === "away") {
+    winner = away;
+    score = odds.away < 1.5 ? "0-2 (estimate)" : "1-2 (estimate)";
   } else {
-    const values = [];
-
-    for (const item of odds) {
-      if (!values.includes(item.value)) {
-        values.push(item.value);
-      }
-    }
-
-    homeOdds = values[0];
-
-    drawOdds =
-      values.length >= 3
-        ? values[1]
-        : null;
-
-    awayOdds =
-      values.length >= 3
-        ? values[2]
-        : values[1];
+    winner = "Draw";
+    score = "1-1 (estimate)";
   }
 
-  if (
-    !Number.isFinite(homeOdds) ||
-    !Number.isFinite(awayOdds)
-  ) {
-    return {
-      home_team: homeTeam,
-      away_team: awayTeam,
-      predicted_winner: "Unable to determine",
-      market: "1X2",
-      confidence: "Low",
-      odds: "",
-      goal_prediction: "Unavailable",
-      over_under: "Unavailable",
-      btts: "Unavailable",
-      possible_score: "Unavailable",
-      reason:
-        "The betting odds could not be read reliably from the screenshot.",
-    };
+  const probability = favourite.probability;
+
+  let confidence;
+
+  if (probability >= 65) {
+    confidence = "Strongest market favourite";
+  } else if (probability >= 45) {
+    confidence = "Moderate market favourite";
+  } else {
+    confidence = "No strong favourite";
   }
 
-  let winner = "Draw";
-  let selectedOdds =
-    drawOdds !== null
-      ? drawOdds
-      : homeOdds;
-
-  let winnerSide = "draw";
-
-  if (
-    homeOdds < awayOdds &&
-    (!drawOdds ||
-      homeOdds < drawOdds)
-  ) {
-    winner = homeTeam;
-    selectedOdds = homeOdds;
-    winnerSide = "home";
-  } else if (
-    awayOdds < homeOdds &&
-    (!drawOdds ||
-      awayOdds < drawOdds)
-  ) {
-    winner = awayTeam;
-    selectedOdds = awayOdds;
-    winnerSide = "away";
-  }
-
-  const outcomes =
-    drawOdds !== null
-      ? [
-          homeOdds,
-          drawOdds,
-          awayOdds,
-        ]
-      : [
-          homeOdds,
-          awayOdds,
-        ];
-
-  const sorted = [...outcomes].sort(
-    (a, b) => a - b
+  const goalMarket = text.match(
+    /\b(over|under)\s*(\d+(?:[.,]\d+)?)/i
   );
 
-  const gap =
-    sorted[1] > 0
-      ? sorted[0] / sorted[1]
-      : 1;
+  const oddsText =
+    `1 (Home): ${odds.home}` +
+    (odds.draw !== null ? ` | X (Draw): ${odds.draw}` : "") +
+    ` | 2 (Away): ${odds.away}`;
 
-  let confidence = "Low";
+  const probabilityText = probabilities
+    .map(outcome => {
+      const label =
+        outcome.key === "home" ? home :
+        outcome.key === "away" ? away :
+        "Draw";
 
-  if (gap < 0.62) {
-    confidence = "High";
-  } else if (gap < 0.8) {
-    confidence = "Medium";
-  }
-
-  const goalMarket =
-    extractGoalMarket(source);
-
-  let goalPrediction;
-  let overUnder;
-
-  if (goalMarket) {
-    goalPrediction =
-      `${goalMarket.line} Goals`;
-
-    overUnder =
-      `${goalMarket.side} ${goalMarket.line}`;
-  } else if (selectedOdds <= 1.3) {
-    goalPrediction = "2–4 Goals";
-    overUnder = "Over 2.5";
-  } else if (selectedOdds <= 1.7) {
-    goalPrediction = "2–3 Goals";
-    overUnder = "Over 2.5";
-  } else {
-    goalPrediction = "1–3 Goals";
-    overUnder = "Under 3.5";
-  }
-
-  let btts = "Yes";
-
-  if (
-    selectedOdds <= 1.3 &&
-    (
-      (winnerSide === "away" &&
-        homeOdds >= 7) ||
-      (winnerSide === "home" &&
-        awayOdds >= 7)
-    )
-  ) {
-    btts = "No";
-  }
-
-  let possibleScore = "1–1";
-
-  if (winnerSide === "away") {
-    possibleScore =
-      selectedOdds <= 1.3
-        ? "0–2"
-        : "1–2";
-  }
-
-  if (winnerSide === "home") {
-    possibleScore =
-      selectedOdds <= 1.3
-        ? "2–0"
-        : "2–1";
-  }
-
-  const formattedOdds =
-    drawOdds !== null
-      ? `1: ${homeOdds.toFixed(2)} | X: ${drawOdds.toFixed(2)} | 2: ${awayOdds.toFixed(2)}`
-      : `1: ${homeOdds.toFixed(2)} | 2: ${awayOdds.toFixed(2)}`;
+      return `${label}: ${outcome.probability.toFixed(1)}%`;
+    })
+    .join(" | ");
 
   return {
-    home_team: homeTeam,
-    away_team: awayTeam,
+    home_team: home,
+    away_team: away,
     predicted_winner: winner,
-    market: "1X2",
+    goal_prediction: "Not reliably determined from 1X2 odds",
+    over_under: goalMarket
+      ? `${goalMarket[1].toUpperCase()} ${goalMarket[2].replace(",", ".")}`
+      : "Not reliably determined from 1X2 odds",
+    btts: "Not reliably determined from 1X2 odds",
+    possible_score: score,
     confidence,
-    odds: formattedOdds,
-    goal_prediction: goalPrediction,
-    over_under: overUnder,
-    btts,
-    possible_score: possibleScore,
-    reason: goalMarket
-      ? `${winner} has the strongest 1X2 market signal, and the visible goal market was also considered.`
-      : `${winner} has the strongest 1X2 market signal. Goal, Over/Under and BTTS are heuristic estimates because those markets were not clearly visible in the screenshot.`,
+    estimated_probability: `${probability.toFixed(1)}% (market-based estimate)`,
+    odds: oddsText,
+    outcome_probabilities: probabilityText,
+    reason:
+      `${winner} has the lowest detected odds and is the market favourite. ` +
+      `Estimated probabilities: ${probabilityText}. ` +
+      "These figures are derived from the detected odds, not live team statistics. " +
+      "A favourite can still lose; no outcome is guaranteed."
   };
 }
 
 export default function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
-      error: "Method not allowed",
+      error: "Method not allowed"
     });
   }
 
   try {
-    const { text } = req.body || {};
+    const text = clean(req.body?.text);
 
-    if (
-      !text ||
-      typeof text !== "string"
-    ) {
+    if (!text) {
       return res.status(400).json({
-        error: "No OCR text was provided.",
+        error: "No screenshot text was received."
       });
     }
 
     return res.status(200).json({
-      prediction: buildPrediction(text),
+      success: true,
+      prediction: makePrediction(text)
     });
   } catch (error) {
-    console.error(
-      "Sure Prediction error:",
-      error
-    );
+    console.error("Sure Prediction error:", error);
 
     return res.status(500).json({
-      error:
-        "Unable to process the prediction.",
+      error: "Unable to analyze the screenshot."
     });
   }
 }
